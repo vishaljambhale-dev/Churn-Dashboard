@@ -9,7 +9,6 @@ st.set_page_config(page_title="Dashboard", layout="wide", initial_sidebar_state=
 
 st.markdown("""
     <style>
-    /* Reduce top whitespace */
     .block-container {
         padding-top: 1.5rem !important;
         padding-bottom: 2rem !important;
@@ -18,30 +17,30 @@ st.markdown("""
     h1 { font-family: 'Segoe UI', sans-serif; padding-bottom: 0px; margin-bottom: 10px; color: white !important;}
     
     /* -------------------------------------------------------------
-       THE BULLETPROOF CARD HACK 
-       Added broader selectors to catch the side-borders safely 
+       STRICT PATH ISOLATION FOR CARDS
+       Only targets the direct outer border wrapper of the columns inside the tabs.
+       Prevents all CSS leakage and segmented lines.
     ------------------------------------------------------------- */
-    div[data-testid="stVerticalBlockBorderWrapper"]:has(.fa-anchor),
-    div[data-testid="stVerticalBlock"]:has(.fa-anchor) > div {
+    
+    /* FA Card (Column 1) */
+    div[data-testid="stTabs"] div[data-testid="column"]:nth-of-type(1) > div[data-testid="stVerticalBlockBorderWrapper"] {
         background-color: #1A1C23 !important; 
-        border: none !important;
+        border: 1px solid #333 !important;
         border-left: 4px solid #3B82F6 !important; /* FA Blue Accent */
-        padding: 20px !important;
+        padding: 15px 20px 25px 20px !important;
         border-radius: 6px !important;
     }
     
-    div[data-testid="stVerticalBlockBorderWrapper"]:has(.ra-anchor),
-    div[data-testid="stVerticalBlock"]:has(.ra-anchor) > div {
+    /* RA Card (Column 2) */
+    div[data-testid="stTabs"] div[data-testid="column"]:nth-of-type(2) > div[data-testid="stVerticalBlockBorderWrapper"] {
         background-color: #1A1C23 !important; 
-        border: none !important;
+        border: 1px solid #333 !important;
         border-left: 4px solid #EF4444 !important; /* RA Red Accent */
-        padding: 20px !important;
+        padding: 15px 20px 25px 20px !important;
         border-radius: 6px !important;
     }
     
-    /* -------------------------------------------------------------
-       INPUT FIELDS & BUTTON STYLING 
-    ------------------------------------------------------------- */
+    /* Input Fields */
     .stNumberInput input, .stTextInput input, .stTextArea textarea {
         color: #FFFFFF !important;
         font-weight: 600;
@@ -56,10 +55,10 @@ st.markdown("""
         text-transform: uppercase !important;
     }
     
-    /* The Navy Blue Add Button aligned with inputs */
+    /* Navy Blue Add Button */
     .stButton > button {
         height: 40px !important;
-        background-color: #1D4ED8 !important; /* Navy Blue Primary Color */
+        background-color: #1D4ED8 !important; 
         color: white !important;
         font-weight: bold !important;
         border: none !important;
@@ -67,13 +66,13 @@ st.markdown("""
         transition: 0.2s;
     }
     .stButton > button:hover {
-        background-color: #1E3A8A !important; /* Darker Navy on hover */
+        background-color: #1E3A8A !important; 
     }
     </style>
 """, unsafe_allow_html=True)
 
 # =====================================================================
-# 2. DATA PROCESSING & HIGH-DENSITY HTML TABLE GENERATOR
+# 2. DATA PROCESSING & HTML TABLE GENERATOR
 # =====================================================================
 @st.cache_data
 def load_lot_sizes(file):
@@ -115,15 +114,12 @@ def parse_excel_paste(raw_text):
     return False, "Unable to read format."
 
 def generate_html_table(df):
-    """Generates a hyper-dense, non-scrollable HTML table with prominent headers."""
     if 'Lot Size' not in df.columns: df['Lot Size'] = 0
     df['Total Lots'] = np.where(df['Lot Size'] > 0, np.floor(df['Quantity'] / df['Lot Size']), 0)
     
     html = '<div style="margin-bottom: 25px;">'
-    # Reduced font-size to 11px for maximum density
     html += '<table style="width: 100%; border-collapse: collapse; font-size: 11px; color: #E0E0E0; font-family: \'Segoe UI\', sans-serif;">'
     
-    # Prominent Header Row
     html += '<thead style="background-color: #2D303E; border-bottom: 2px solid #555;"><tr>'
     html += '<th style="text-align: left; padding: 6px 6px; font-weight: 700; color: #FFFFFF; width: 40%;">NSE Symbol</th>'
     html += '<th style="text-align: right; padding: 6px 6px; font-weight: 700; color: #FFFFFF; width: 20%;">Quantity</th>'
@@ -131,14 +127,13 @@ def generate_html_table(df):
     html += '<th style="text-align: right; padding: 6px 6px; font-weight: 700; color: #FFFFFF; width: 20%;">Total Lots</th>'
     html += '</tr></thead><tbody>'
     
-    # Rows with Zebra Striping and extremely tight padding
     for i, row in df.iterrows():
         bg_color = "#1A1C23" if i % 2 == 0 else "#22242C"
         html += f'<tr style="background-color: {bg_color}; border-bottom: 1px solid #2A2C35;">'
-        html += f'<td style="text-align: left; padding: 2px 6px; font-weight: 500;">{row.get("NSE Symbol", "")}</td>'
-        html += f'<td style="text-align: right; padding: 2px 6px;">{row.get("Quantity", 0):g}</td>'
-        html += f'<td style="text-align: right; padding: 2px 6px;">{row.get("Lot Size", 0):g}</td>'
-        html += f'<td style="text-align: right; padding: 2px 6px;">{int(row.get("Total Lots", 0))}</td>'
+        html += f'<td style="text-align: left; padding: 4px 6px; font-weight: 500;">{row.get("NSE Symbol", "")}</td>'
+        html += f'<td style="text-align: right; padding: 4px 6px;">{row.get("Quantity", 0):g}</td>'
+        html += f'<td style="text-align: right; padding: 4px 6px;">{row.get("Lot Size", 0):g}</td>'
+        html += f'<td style="text-align: right; padding: 4px 6px;">{int(row.get("Total Lots", 0))}</td>'
         html += '</tr>'
         
     html += '</tbody></table></div>'
@@ -158,7 +153,7 @@ with st.sidebar:
     master_file = st.file_uploader("Drop 'NSE Master Lot Size File' here", type=['csv'])
     lot_dict = load_lot_sizes(master_file) if master_file else {}
     st.divider()
-    st.markdown("<div style='text-align:center; font-size: 11px; color:#A0A0A0;'>Churn Dashboard v7.0</div>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align:center; font-size: 11px; color:#A0A0A0;'>Churn Dashboard v8.0</div>", unsafe_allow_html=True)
 
 # Callbacks for Batch Processing
 def process_fa_batch():
@@ -246,7 +241,6 @@ with tab2:
     with col_fa:
         fa_card = st.container(border=True)
         with fa_card:
-            st.markdown("<div class='fa-anchor'></div>", unsafe_allow_html=True)
             st.markdown("<h3 style='color: white; font-size:18px; font-weight: 600; margin-bottom: 20px;'>Fresh Arbitrage (FA)</h3>", unsafe_allow_html=True)
             
             if not st.session_state['fa_booted']:
@@ -258,7 +252,6 @@ with tab2:
                 st.markdown(generate_html_table(fa_display), unsafe_allow_html=True)
                 
                 st.markdown("<span style='font-size: 13px; color: #3B82F6; font-weight:bold;'>+ Add New Entry</span>", unsafe_allow_html=True)
-                
                 f_c1, f_c2, f_c3, f_c4, f_c5 = st.columns([2.5, 1.5, 1.2, 1, 1.2])
                 
                 sym_val = f_c1.text_input("SYMBOL", key="fa_sym", placeholder="Search...").strip().upper()
@@ -271,14 +264,12 @@ with tab2:
                 calc_lots = int(np.floor(qty_val / lot_val)) if lot_val > 0 else 0
                 
                 f_c4.markdown(f"<div style='font-size:11px; font-weight:600; color:#A0A0A0; margin-bottom:5px; margin-top:2px;'>TOTAL LOTS</div><div style='color:white; font-weight:bold; font-size: 16px; margin-top: 10px;'>{calc_lots}</div>", unsafe_allow_html=True)
-                
                 f_c5.button("Add", key="fa_add_btn", on_click=add_fa_single, use_container_width=True)
 
     # --- REVERSE ARBITRAGE (RA) CARD ---
     with col_ra:
         ra_card = st.container(border=True)
         with ra_card:
-            st.markdown("<div class='ra-anchor'></div>", unsafe_allow_html=True)
             st.markdown("<h3 style='color: white; font-size:18px; font-weight: 600; margin-bottom: 20px;'>Reverse Arbitrage (RA)</h3>", unsafe_allow_html=True)
             
             if not st.session_state['ra_booted']:
@@ -290,7 +281,6 @@ with tab2:
                 st.markdown(generate_html_table(ra_display), unsafe_allow_html=True)
                 
                 st.markdown("<span style='font-size: 13px; color: #EF4444; font-weight:bold;'>+ Add New Entry</span>", unsafe_allow_html=True)
-                
                 r_c1, r_c2, r_c3, r_c4, r_c5 = st.columns([2.5, 1.5, 1.2, 1, 1.2])
                 
                 rsym_val = r_c1.text_input("SYMBOL", key="ra_sym", placeholder="Search...").strip().upper()
@@ -303,8 +293,6 @@ with tab2:
                 rcalc_lots = int(np.floor(rqty_val / rlot_val)) if rlot_val > 0 else 0
                 
                 r_c4.markdown(f"<div style='font-size:11px; font-weight:600; color:#A0A0A0; margin-bottom:5px; margin-top:2px;'>TOTAL LOTS</div><div style='color:white; font-weight:bold; font-size: 16px; margin-top: 10px;'>{rcalc_lots}</div>", unsafe_allow_html=True)
-                
                 r_c5.button("Add", key="ra_add_btn", on_click=add_ra_single, use_container_width=True)
 
-# Add a massive transparent buffer at the bottom of the page to prevent "Manage app" toggle overlap
 st.markdown("<div style='height: 100px; width: 100%;'></div>", unsafe_allow_html=True)
