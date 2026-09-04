@@ -7,39 +7,45 @@ import numpy as np
 # =====================================================================
 st.set_page_config(page_title="Dashboard", layout="wide", initial_sidebar_state="expanded")
 
-# Injecting highly specific CSS to override Streamlit's native data_editor styling
+# Inject Custom CSS to force Streamlit to look exactly like the mockup
 st.markdown("""
     <style>
-    /* Side Accents for FA and RA columns */
-    [data-testid="column"]:nth-of-type(1) {
-        border-left: 4px solid #3B82F6 !important; /* FA Institutional Blue */
-        background-color: #1E1E1E !important;
-        border-radius: 4px;
-        padding: 20px !important;
-        margin-right: 10px;
+    /* Reduce massive top whitespace */
+    .block-container {
+        padding-top: 1rem !important;
+        padding-bottom: 0rem !important;
     }
-    [data-testid="column"]:nth-of-type(2) {
-        border-left: 4px solid #EF4444 !important; /* RA Vibrant Red */
-        background-color: #1E1E1E !important;
-        border-radius: 4px;
-        padding: 20px !important;
-        margin-left: 10px;
-    }
-    
-    /* Force Quantity editable text to be strictly white */
-    .stNumberInput input { color: #FFFFFF !important; font-weight: 600; }
     
     /* Clean up headers */
-    h1, h2, h3 { font-family: 'Segoe UI', sans-serif; padding-bottom: 5px; }
+    h1 { font-family: 'Segoe UI', sans-serif; padding-bottom: 0px; margin-bottom: 0px; }
+    h2, h3 { font-family: 'Segoe UI', sans-serif; }
+    
+    /* Force Quantity editable text to be strictly white */
+    .stNumberInput input, .stTextInput input {
+        color: #FFFFFF !important;
+        font-weight: 600;
+    }
     
     /* Hide row indices in dataframes */
     thead tr th:first-child {display:none}
     tbody th {display:none}
     
-    /* Force Data Editor Alignment (Left for Text, Right for Numbers) */
+    /* Force Data Editor Alignment */
     [data-testid="stDataFrame"] td { text-align: right !important; }
-    [data-testid="stDataFrame"] td:nth-child(2) { text-align: left !important; } /* Symbol Col */
+    [data-testid="stDataFrame"] td:nth-child(2) { text-align: left !important; } 
     
+    /* Style the massive Add Button */
+    .stButton > button {
+        height: 42px !important;
+        background-color: #3B82F6 !important;
+        color: white !important;
+        font-weight: bold !important;
+        border: none !important;
+        margin-top: 28px !important; /* Align with inputs */
+    }
+    .stButton > button:hover {
+        background-color: #2563EB !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -68,14 +74,12 @@ def load_trade_data(file):
     return pd.read_excel(file, sheet_name=0)
 
 # Initialize Session States for Repositories as STRICT BLANK SLATES
-# By defining dtypes, we prevent the "None" issue and allow clean Excel pasting
+# By keeping everything as empty strings, Excel block pasting works natively.
 def get_blank_repo():
-    df = pd.DataFrame(columns=["NSE Symbol", "Quantity"])
-    df["NSE Symbol"] = df["NSE Symbol"].astype(str)
-    df["Quantity"] = pd.to_numeric(df["Quantity"], errors='coerce')
-    # Add a few blank rows ready for pasting
-    for i in range(5):
-        df.loc[i] = ["", None]
+    df = pd.DataFrame({
+        "NSE Symbol": ["", "", "", "", ""],
+        "Quantity": ["", "", "", "", ""] 
+    })
     return df
 
 if 'fa_repo' not in st.session_state:
@@ -139,17 +143,24 @@ with tab2:
     
     # --- FRESH ARBITRAGE (FA) SECTION ---
     with col_fa:
-        st.markdown("<h3 style='color: #3B82F6; border-bottom: 1px solid #333; padding-bottom: 10px;'>Fresh Arbitrage (FA)</h3>", unsafe_allow_html=True)
+        # Wrap everything in a simulated HTML "Card" with the Blue Side Accent
+        st.markdown("""
+        <div style='border-left: 4px solid #3B82F6; background-color: #1E1E1E; padding: 20px; border-radius: 4px;'>
+            <h3 style='color: white; margin-top: 0px;'>Fresh Arbitrage (FA)</h3>
+        </div>
+        """, unsafe_allow_html=True)
         
         fa_display = st.session_state['fa_repo'].copy()
-        # Clean symbols to ensure dictionary matching works
-        fa_display['NSE Symbol'] = fa_display['NSE Symbol'].fillna("").astype(str).str.strip().str.upper()
+        
+        # Safe calculations allowing for empty strings
+        fa_display['NSE Symbol'] = fa_display['NSE Symbol'].astype(str).str.strip().str.upper()
         fa_display['Lot Size'] = fa_display['NSE Symbol'].map(lot_dict).fillna(0)
         
-        # Calculate Total Lots safely
-        fa_display['Quantity'] = pd.to_numeric(fa_display['Quantity'], errors='coerce').fillna(0)
-        fa_display['Total Lots'] = np.where(fa_display['Lot Size'] > 0, fa_display['Quantity'] / fa_display['Lot Size'], 0).round(2)
+        # Convert Quantity to numeric purely for math, leave original for display safety
+        temp_qty = pd.to_numeric(fa_display['Quantity'], errors='coerce').fillna(0)
+        fa_display['Total Lots'] = np.where(fa_display['Lot Size'] > 0, temp_qty / fa_display['Lot Size'], 0).round(2)
         
+        # Render Table
         edited_fa = st.data_editor(
             fa_display,
             disabled=["Lot Size", "Total Lots"], 
@@ -158,38 +169,49 @@ with tab2:
             key="fa_editor",
             hide_index=True
         )
-        # Clean up and save back to session state
-        edited_fa = edited_fa[edited_fa['NSE Symbol'] != ""] # Remove purely blank rows before saving internally
+        # Save edits back to session state
         st.session_state['fa_repo'] = edited_fa[['NSE Symbol', 'Quantity']]
         
-        st.markdown("<br><span style='font-size: 13px; color: #3B82F6; font-weight:600;'>+ Add New Entry</span>", unsafe_allow_html=True)
-        f_c1, f_c2, f_c3, f_c4 = st.columns([2, 1, 1.5, 1.2])
-        with f_c1: new_fa_sym = st.text_input("Symbol", key="fa_sym").strip().upper()
+        st.markdown("<br><span style='font-size: 13px; color: #A0A0A0; font-weight:600;'>+ Add New Entry</span>", unsafe_allow_html=True)
+        
+        # Form layout matching the mockup
+        f_c1, f_c2, f_c3, f_c4, f_c5 = st.columns([2.5, 1, 1.5, 1.2, 1])
+        with f_c1: new_fa_sym = st.text_input("SYMBOL", key="fa_sym", placeholder="Search...").strip().upper()
         with f_c2:
             auto_lot_fa = lot_dict.get(new_fa_sym, 0) if new_fa_sym else 0
-            fa_lot = st.number_input("Lot Size", value=int(auto_lot_fa), disabled=(auto_lot_fa > 0), key="fa_lot_input")
-        with f_c3: fa_qty = st.number_input("Quantity", min_value=0, key="fa_qty_input")
+            fa_lot = st.text_input("LOT SIZE", value=str(int(auto_lot_fa)) if auto_lot_fa > 0 else "Auto", disabled=True, key="fa_lot_input")
+        with f_c3: fa_qty = st.text_input("QUANTITY", value="0", key="fa_qty_input")
         with f_c4:
-            st.markdown("<div style='font-size:11px; font-weight:600; color:#A0A0A0; margin-bottom:10px; margin-top:5px;'>TOTAL LOTS</div>", unsafe_allow_html=True)
-            calc_fa = (fa_qty / fa_lot) if fa_lot > 0 else 0
-            st.markdown(f"<div style='color:white; font-weight:bold; font-size: 18px;'>{calc_fa:.2f}</div>", unsafe_allow_html=True)
-            
-        if st.button("Add FA Entry", key="fa_add", use_container_width=True):
-            if new_fa_sym:
-                new_row = pd.DataFrame([{"NSE Symbol": new_fa_sym, "Quantity": fa_qty}])
-                st.session_state['fa_repo'] = pd.concat([st.session_state['fa_repo'], new_row], ignore_index=True)
-                st.rerun()
+            st.markdown("<div style='font-size:12px; font-weight:600; color:#A0A0A0; margin-bottom:12px; margin-top:5px;'>TOTAL LOTS</div>", unsafe_allow_html=True)
+            try:
+                calc_qty = float(fa_qty)
+                calc_fa = (calc_qty / auto_lot_fa) if auto_lot_fa > 0 else 0
+            except ValueError:
+                calc_fa = 0
+            st.markdown(f"<div style='color:white; font-weight:bold; font-size: 16px; margin-top: 8px;'>{calc_fa:.2f}</div>", unsafe_allow_html=True)
+        with f_c5:    
+            if st.button("Add", key="fa_add", use_container_width=True):
+                if new_fa_sym:
+                    new_row = pd.DataFrame([{"NSE Symbol": new_fa_sym, "Quantity": fa_qty}])
+                    st.session_state['fa_repo'] = pd.concat([st.session_state['fa_repo'], new_row], ignore_index=True)
+                    st.rerun()
 
     # --- REVERSE ARBITRAGE (RA) SECTION ---
     with col_ra:
-        st.markdown("<h3 style='color: #EF4444; border-bottom: 1px solid #333; padding-bottom: 10px;'>Reverse Arbitrage (RA)</h3>", unsafe_allow_html=True)
+        # Wrap everything in a simulated HTML "Card" with the Red Side Accent
+        st.markdown("""
+        <div style='border-left: 4px solid #EF4444; background-color: #1E1E1E; padding: 20px; border-radius: 4px;'>
+            <h3 style='color: white; margin-top: 0px;'>Reverse Arbitrage (RA)</h3>
+        </div>
+        """, unsafe_allow_html=True)
         
         ra_display = st.session_state['ra_repo'].copy()
-        ra_display['NSE Symbol'] = ra_display['NSE Symbol'].fillna("").astype(str).str.strip().str.upper()
+        
+        ra_display['NSE Symbol'] = ra_display['NSE Symbol'].astype(str).str.strip().str.upper()
         ra_display['Lot Size'] = ra_display['NSE Symbol'].map(lot_dict).fillna(0)
         
-        ra_display['Quantity'] = pd.to_numeric(ra_display['Quantity'], errors='coerce').fillna(0)
-        ra_display['Total Lots'] = np.where(ra_display['Lot Size'] > 0, ra_display['Quantity'] / ra_display['Lot Size'], 0).round(2)
+        temp_qty_ra = pd.to_numeric(ra_display['Quantity'], errors='coerce').fillna(0)
+        ra_display['Total Lots'] = np.where(ra_display['Lot Size'] > 0, temp_qty_ra / ra_display['Lot Size'], 0).round(2)
         
         edited_ra = st.data_editor(
             ra_display,
@@ -199,23 +221,28 @@ with tab2:
             key="ra_editor",
             hide_index=True
         )
-        edited_ra = edited_ra[edited_ra['NSE Symbol'] != ""]
         st.session_state['ra_repo'] = edited_ra[['NSE Symbol', 'Quantity']]
         
-        st.markdown("<br><span style='font-size: 13px; color: #EF4444; font-weight:600;'>+ Add New Entry</span>", unsafe_allow_html=True)
-        r_c1, r_c2, r_c3, r_c4 = st.columns([2, 1, 1.5, 1.2])
-        with r_c1: new_ra_sym = st.text_input("Symbol", key="ra_sym").strip().upper()
+        st.markdown("<br><span style='font-size: 13px; color: #A0A0A0; font-weight:600;'>+ Add New Entry</span>", unsafe_allow_html=True)
+        
+        r_c1, r_c2, r_c3, r_c4, r_c5 = st.columns([2.5, 1, 1.5, 1.2, 1])
+        with r_c1: new_ra_sym = st.text_input("SYMBOL", key="ra_sym", placeholder="Search...").strip().upper()
         with r_c2:
             auto_lot_ra = lot_dict.get(new_ra_sym, 0) if new_ra_sym else 0
-            ra_lot = st.number_input("Lot Size", value=int(auto_lot_ra), disabled=(auto_lot_ra > 0), key="ra_lot_input")
-        with r_c3: ra_qty = st.number_input("Quantity", min_value=0, key="ra_qty_input")
+            ra_lot = st.text_input("LOT SIZE", value=str(int(auto_lot_ra)) if auto_lot_ra > 0 else "Auto", disabled=True, key="ra_lot_input")
+        with r_c3: ra_qty = st.text_input("QUANTITY", value="0", key="ra_qty_input")
         with r_c4:
-            st.markdown("<div style='font-size:11px; font-weight:600; color:#A0A0A0; margin-bottom:10px; margin-top:5px;'>TOTAL LOTS</div>", unsafe_allow_html=True)
-            calc_ra = (ra_qty / ra_lot) if ra_lot > 0 else 0
-            st.markdown(f"<div style='color:white; font-weight:bold; font-size: 18px;'>{calc_ra:.2f}</div>", unsafe_allow_html=True)
+            st.markdown("<div style='font-size:12px; font-weight:600; color:#A0A0A0; margin-bottom:12px; margin-top:5px;'>TOTAL LOTS</div>", unsafe_allow_html=True)
+            try:
+                calc_qty_ra = float(ra_qty)
+                calc_ra = (calc_qty_ra / auto_lot_ra) if auto_lot_ra > 0 else 0
+            except ValueError:
+                calc_ra = 0
+            st.markdown(f"<div style='color:white; font-weight:bold; font-size: 16px; margin-top: 8px;'>{calc_ra:.2f}</div>", unsafe_allow_html=True)
             
-        if st.button("Add RA Entry", key="ra_add", use_container_width=True):
-            if new_ra_sym:
-                new_row = pd.DataFrame([{"NSE Symbol": new_ra_sym, "Quantity": ra_qty}])
-                st.session_state['ra_repo'] = pd.concat([st.session_state['ra_repo'], new_row], ignore_index=True)
-                st.rerun()
+        with r_c5:
+            if st.button("Add", key="ra_add", use_container_width=True):
+                if new_ra_sym:
+                    new_row = pd.DataFrame([{"NSE Symbol": new_ra_sym, "Quantity": ra_qty}])
+                    st.session_state['ra_repo'] = pd.concat([st.session_state['ra_repo'], new_row], ignore_index=True)
+                    st.rerun()
