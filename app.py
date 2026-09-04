@@ -15,24 +15,28 @@ st.markdown("""
         padding-bottom: 0rem !important;
     }
     
-    h1 { font-family: 'Segoe UI', sans-serif; padding-bottom: 0px; margin-bottom: 5px; color: white !important;}
+    h1 { font-family: 'Segoe UI', sans-serif; padding-bottom: 0px; margin-bottom: 10px; color: white !important;}
     
-    /* 2. THE TRUE CARD ENCAPSULATION 
-       Targeting Streamlit's internal border-wrapper ensures EVERYTHING 
-       inside st.container(border=True) stays inside the dark background. */
-    div[data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(1) [data-testid="stVerticalBlockBorderWrapper"] {
+    /* 2. THE TRUE CARD ENCAPSULATION */
+    /* Target the main 2-column layout to act as unified cards */
+    div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(1) {
         background-color: #1A1C23 !important; 
-        border: none !important;
         border-left: 4px solid #3B82F6 !important; /* FA Blue Accent */
-        padding: 25px 20px !important;
+        padding: 20px !important;
         border-radius: 6px !important;
     }
-    div[data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) [data-testid="stVerticalBlockBorderWrapper"] {
+    div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(2) {
         background-color: #1A1C23 !important; 
-        border: none !important;
         border-left: 4px solid #EF4444 !important; /* RA Red Accent */
-        padding: 25px 20px !important;
+        padding: 20px !important;
         border-radius: 6px !important;
+    }
+    
+    /* Prevent the inner form columns (5 columns) from inheriting the card styles */
+    div[data-testid="stHorizontalBlock"] div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+        background-color: transparent !important;
+        border-left: none !important;
+        padding: 0px !important;
     }
     
     /* 3. Input Fields & Buttons */
@@ -70,7 +74,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =====================================================================
-# 2. DATA PROCESSING & HTML GENERATOR
+# 2. DATA PROCESSING & HIGH-DENSITY HTML TABLE GENERATOR
 # =====================================================================
 @st.cache_data
 def load_lot_sizes(file):
@@ -112,25 +116,26 @@ def parse_excel_paste(raw_text):
     return False, "Unable to read format."
 
 def generate_html_table(df):
-    """Generates a pure HTML table for 100% Mockup alignment."""
-    # Ensure Total Lots is strictly rounded down
+    """Generates a high-density pure HTML table matching the mockup."""
+    # Ensure Total Lots is strictly rounded down to nearest integer
     if 'Lot Size' not in df.columns: df['Lot Size'] = 0
     df['Total Lots'] = np.where(df['Lot Size'] > 0, np.floor(df['Quantity'] / df['Lot Size']), 0)
     
-    html = '<table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #E0E0E0; margin-bottom: 30px; font-family: \'Segoe UI\', sans-serif;">'
-    html += '<thead><tr style="border-bottom: 1px solid #333;">'
-    html += '<th style="text-align: left; padding: 12px 8px; font-weight: 600; color: #A0A0A0;">NSE Symbol</th>'
-    html += '<th style="text-align: right; padding: 12px 8px; font-weight: 600; color: #A0A0A0;">Quantity</th>'
-    html += '<th style="text-align: right; padding: 12px 8px; font-weight: 600; color: #A0A0A0;">Lot Size</th>'
-    html += '<th style="text-align: right; padding: 12px 8px; font-weight: 600; color: #A0A0A0;">Total Lots</th>'
+    # Using 12px font and 4px padding for maximum density
+    html = '<table style="width: 100%; border-collapse: collapse; font-size: 12px; color: #E0E0E0; margin-bottom: 25px; font-family: \'Segoe UI\', sans-serif;">'
+    html += '<thead><tr style="border-bottom: 1px solid #444;">'
+    html += '<th style="text-align: left; padding: 4px 8px; font-weight: 600; color: #A0A0A0;">NSE Symbol</th>'
+    html += '<th style="text-align: right; padding: 4px 8px; font-weight: 600; color: #A0A0A0;">Quantity</th>'
+    html += '<th style="text-align: right; padding: 4px 8px; font-weight: 600; color: #A0A0A0;">Lot Size</th>'
+    html += '<th style="text-align: right; padding: 4px 8px; font-weight: 600; color: #A0A0A0;">Total Lots</th>'
     html += '</tr></thead><tbody>'
     
     for _, row in df.iterrows():
         html += '<tr style="border-bottom: 1px solid #2A2C35;">'
-        html += f'<td style="text-align: left; padding: 12px 8px; font-weight: 500;">{row.get("NSE Symbol", "")}</td>'
-        html += f'<td style="text-align: right; padding: 12px 8px;">{row.get("Quantity", 0):g}</td>'
-        html += f'<td style="text-align: right; padding: 12px 8px;">{row.get("Lot Size", 0):g}</td>'
-        html += f'<td style="text-align: right; padding: 12px 8px;">{int(row.get("Total Lots", 0))}</td>'
+        html += f'<td style="text-align: left; padding: 4px 8px; font-weight: 500;">{row.get("NSE Symbol", "")}</td>'
+        html += f'<td style="text-align: right; padding: 4px 8px;">{row.get("Quantity", 0):g}</td>'
+        html += f'<td style="text-align: right; padding: 4px 8px;">{row.get("Lot Size", 0):g}</td>'
+        html += f'<td style="text-align: right; padding: 4px 8px;">{int(row.get("Total Lots", 0))}</td>'
         html += '</tr>'
         
     html += '</tbody></table>'
@@ -138,9 +143,9 @@ def generate_html_table(df):
 
 # Initialize Global Session States
 if 'fa_booted' not in st.session_state:
-    st.session_state.update({'fa_booted': False, 'fa_repo': pd.DataFrame(), 'fa_msg': "", 'fa_sym': "", 'fa_qty': 0.0, 'fa_lot_str': ""})
+    st.session_state.update({'fa_booted': False, 'fa_repo': pd.DataFrame(), 'fa_sym': "", 'fa_qty': 0.0, 'fa_lot_str': ""})
 if 'ra_booted' not in st.session_state:
-    st.session_state.update({'ra_booted': False, 'ra_repo': pd.DataFrame(), 'ra_msg': "", 'ra_sym': "", 'ra_qty': 0.0, 'ra_lot_str': ""})
+    st.session_state.update({'ra_booted': False, 'ra_repo': pd.DataFrame(), 'ra_sym': "", 'ra_qty': 0.0, 'ra_lot_str': ""})
 
 # =====================================================================
 # 3. SIDEBAR & FILE LOADING
@@ -150,9 +155,9 @@ with st.sidebar:
     master_file = st.file_uploader("Drop 'NSE Master Lot Size File' here", type=['csv'])
     lot_dict = load_lot_sizes(master_file) if master_file else {}
     st.divider()
-    st.markdown("<div style='text-align:center; font-size: 11px; color:#A0A0A0;'>Churn Dashboard v4.0</div>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align:center; font-size: 11px; color:#A0A0A0;'>Churn Dashboard v4.1</div>", unsafe_allow_html=True)
 
-# Callback to process FA Batch
+# Callbacks for Batch Processing
 def process_fa_batch():
     raw = st.session_state.fa_init_box
     success, res = parse_excel_paste(raw)
@@ -161,11 +166,10 @@ def process_fa_batch():
         df['Lot Size'] = df['NSE Symbol'].map(lot_dict).fillna(0)
         st.session_state['fa_repo'] = df
         st.session_state['fa_booted'] = True
-        st.session_state['fa_msg'] = f"Success! Loaded {len(res)} entries."
+        st.toast(f"✅ Success! Loaded {len(res)} FA entries.", icon="✅")
     else:
-        st.session_state['fa_msg'] = f"Error: {res}"
+        st.toast(f"❌ Error: {res}", icon="❌")
 
-# Callback to process RA Batch
 def process_ra_batch():
     raw = st.session_state.ra_init_box
     success, res = parse_excel_paste(raw)
@@ -174,11 +178,11 @@ def process_ra_batch():
         df['Lot Size'] = df['NSE Symbol'].map(lot_dict).fillna(0)
         st.session_state['ra_repo'] = df
         st.session_state['ra_booted'] = True
-        st.session_state['ra_msg'] = f"Success! Loaded {len(res)} entries."
+        st.toast(f"✅ Success! Loaded {len(res)} RA entries.", icon="✅")
     else:
-        st.session_state['ra_msg'] = f"Error: {res}"
+        st.toast(f"❌ Error: {res}", icon="❌")
 
-# Callback for Single FA Add
+# Callbacks for Single Entries
 def add_fa_single():
     sym = st.session_state.fa_sym.strip().upper()
     qty = float(st.session_state.fa_qty)
@@ -188,12 +192,10 @@ def add_fa_single():
     if sym and qty > 0 and lot > 0:
         new_row = pd.DataFrame([{"NSE Symbol": sym, "Quantity": qty, "Lot Size": lot}])
         st.session_state['fa_repo'] = pd.concat([st.session_state['fa_repo'], new_row], ignore_index=True)
-        # Clear fields to remove ghost values
         st.session_state.fa_sym = ""
         st.session_state.fa_qty = 0.0
         st.session_state.fa_lot_str = ""
 
-# Callback for Single RA Add
 def add_ra_single():
     sym = st.session_state.ra_sym.strip().upper()
     qty = float(st.session_state.ra_qty)
@@ -239,84 +241,62 @@ with tab2:
     
     # --- FRESH ARBITRAGE (FA) CARD ---
     with col_fa:
-        # Wrap the container to enforce the card background and borders
-        fa_card = st.container(border=True)
-        with fa_card:
-            st.markdown("<h3 style='color: white; font-size:18px; font-weight: 600; margin-bottom: 20px;'><span style='color:#3B82F6;'>Fresh Arbitrage</span> (FA)</h3>", unsafe_allow_html=True)
+        st.markdown("<h3 style='color: white; font-size:18px; font-weight: 600; margin-bottom: 15px;'>Fresh Arbitrage (FA)</h3>", unsafe_allow_html=True)
+        
+        # BOOT STATE
+        if not st.session_state['fa_booted']:
+            st.text_area("Paste Excel Batch (Symbol & Quantity)", height=150, key="fa_init_box", placeholder="ABB\t13455\nADANIENSOL\t72166...")
+            st.button("Process Initial FA Batch", use_container_width=True, on_click=process_fa_batch)
+        
+        # POPULATED STATE
+        else:
+            fa_display = st.session_state['fa_repo'].copy()
+            st.markdown(generate_html_table(fa_display), unsafe_allow_html=True)
             
-            # Inline Banner for Success/Error (matches mockup)
-            if st.session_state['fa_msg']:
-                is_suc = "Success" in st.session_state['fa_msg']
-                bg_col = "rgba(46, 160, 67, 0.2)" if is_suc else "rgba(248, 81, 73, 0.2)"
-                border_col = "#4ADE80" if is_suc else "#F87171"
-                st.markdown(f"<div style='background-color:{bg_col}; border:1px solid {border_col}; padding: 12px 15px; border-radius:4px; color: white; margin-bottom: 15px; font-size:14px;'>{st.session_state['fa_msg']}</div>", unsafe_allow_html=True)
-                st.session_state['fa_msg'] = "" # Clear after viewing
+            st.markdown("<span style='font-size: 12px; color: #3B82F6; font-weight:bold;'>+ Add New Entry</span>", unsafe_allow_html=True)
             
-            # BOOT STATE
-            if not st.session_state['fa_booted']:
-                st.text_area("Paste Excel Batch (Symbol & Quantity)", height=150, key="fa_init_box", placeholder="ABB\t13455\nADANIENSOL\t72166...")
-                st.button("Process Initial FA Batch", use_container_width=True, on_click=process_fa_batch)
+            f_c1, f_c2, f_c3, f_c4, f_c5 = st.columns([2.5, 1.2, 1.5, 1, 1.2])
             
-            # POPULATED STATE
-            else:
-                fa_display = st.session_state['fa_repo'].copy()
-                st.markdown(generate_html_table(fa_display), unsafe_allow_html=True)
-                
-                st.markdown("<span style='font-size: 13px; color: #3B82F6; font-weight:bold;'>+ Add New Entry</span>", unsafe_allow_html=True)
-                
-                f_c1, f_c2, f_c3, f_c4, f_c5 = st.columns([2.5, 1.2, 1.5, 1, 1.2])
-                
-                sym_val = f_c1.text_input("SYMBOL", key="fa_sym", placeholder="Search...").strip().upper()
-                
-                # Fetch default lot size, but allow user to override text
-                auto_lot = lot_dict.get(sym_val, "") if sym_val else ""
-                lot_str = f_c2.text_input("LOT SIZE", value=str(int(auto_lot)) if auto_lot else "", placeholder="Auto", key="fa_lot_str")
-                
-                qty_val = f_c3.number_input("QUANTITY", min_value=0.0, step=1.0, key="fa_qty")
-                
-                # Math safely computing rounding down Total Lots
-                lot_val = float(lot_str) if lot_str.replace('.','',1).isdigit() else 0
-                calc_lots = int(np.floor(qty_val / lot_val)) if lot_val > 0 else 0
-                
-                f_c4.markdown(f"<div style='font-size:11px; font-weight:600; color:#A0A0A0; margin-bottom:5px; margin-top:2px;'>TOTAL LOTS</div><div style='color:white; font-weight:bold; font-size: 16px; margin-top: 10px;'>{calc_lots}</div>", unsafe_allow_html=True)
-                
-                f_c5.button("Add", key="fa_add_btn", on_click=add_fa_single, use_container_width=True)
+            sym_val = f_c1.text_input("SYMBOL", key="fa_sym", placeholder="Search...").strip().upper()
+            
+            auto_lot = lot_dict.get(sym_val, "") if sym_val else ""
+            lot_str = f_c2.text_input("LOT SIZE", value=str(int(auto_lot)) if auto_lot else "", placeholder="Auto", key="fa_lot_str")
+            
+            qty_val = f_c3.number_input("QUANTITY", min_value=0.0, step=1.0, key="fa_qty")
+            
+            lot_val = float(lot_str) if lot_str.replace('.','',1).isdigit() else 0
+            calc_lots = int(np.floor(qty_val / lot_val)) if lot_val > 0 else 0
+            
+            f_c4.markdown(f"<div style='font-size:11px; font-weight:600; color:#A0A0A0; margin-bottom:5px; margin-top:2px;'>TOTAL LOTS</div><div style='color:white; font-weight:bold; font-size: 16px; margin-top: 10px;'>{calc_lots}</div>", unsafe_allow_html=True)
+            
+            f_c5.button("Add", key="fa_add_btn", on_click=add_fa_single, use_container_width=True)
 
     # --- REVERSE ARBITRAGE (RA) CARD ---
     with col_ra:
-        ra_card = st.container(border=True)
-        with ra_card:
-            st.markdown("<h3 style='color: white; font-size:18px; font-weight: 600; margin-bottom: 20px;'><span style='color:#EF4444;'>Reverse Arbitrage</span> (RA)</h3>", unsafe_allow_html=True)
+        st.markdown("<h3 style='color: white; font-size:18px; font-weight: 600; margin-bottom: 15px;'>Reverse Arbitrage (RA)</h3>", unsafe_allow_html=True)
+        
+        if not st.session_state['ra_booted']:
+            st.text_area("Paste Excel Batch (Symbol & Quantity)", height=150, key="ra_init_box", placeholder="ALKEM\t6744\nASHOKLEY\t152750...")
+            st.button("Process Initial RA Batch", use_container_width=True, on_click=process_ra_batch)
+        
+        else:
+            ra_display = st.session_state['ra_repo'].copy()
+            st.markdown(generate_html_table(ra_display), unsafe_allow_html=True)
             
-            if st.session_state['ra_msg']:
-                is_suc = "Success" in st.session_state['ra_msg']
-                bg_col = "rgba(46, 160, 67, 0.2)" if is_suc else "rgba(248, 81, 73, 0.2)"
-                border_col = "#4ADE80" if is_suc else "#F87171"
-                st.markdown(f"<div style='background-color:{bg_col}; border:1px solid {border_col}; padding: 12px 15px; border-radius:4px; color: white; margin-bottom: 15px; font-size:14px;'>{st.session_state['ra_msg']}</div>", unsafe_allow_html=True)
-                st.session_state['ra_msg'] = ""
-                
-            if not st.session_state['ra_booted']:
-                st.text_area("Paste Excel Batch (Symbol & Quantity)", height=150, key="ra_init_box", placeholder="ALKEM\t6744\nASHOKLEY\t152750...")
-                st.button("Process Initial RA Batch", use_container_width=True, on_click=process_ra_batch)
+            st.markdown("<span style='font-size: 12px; color: #EF4444; font-weight:bold;'>+ Add New Entry</span>", unsafe_allow_html=True)
             
-            else:
-                ra_display = st.session_state['ra_repo'].copy()
-                st.markdown(generate_html_table(ra_display), unsafe_allow_html=True)
-                
-                st.markdown("<span style='font-size: 13px; color: #EF4444; font-weight:bold;'>+ Add New Entry</span>", unsafe_allow_html=True)
-                
-                r_c1, r_c2, r_c3, r_c4, r_c5 = st.columns([2.5, 1.2, 1.5, 1, 1.2])
-                
-                rsym_val = r_c1.text_input("SYMBOL", key="ra_sym", placeholder="Search...").strip().upper()
-                
-                r_auto_lot = lot_dict.get(rsym_val, "") if rsym_val else ""
-                rlot_str = r_c2.text_input("LOT SIZE", value=str(int(r_auto_lot)) if r_auto_lot else "", placeholder="Auto", key="ra_lot_str")
-                
-                rqty_val = r_c3.number_input("QUANTITY", min_value=0.0, step=1.0, key="ra_qty")
-                
-                rlot_val = float(rlot_str) if rlot_str.replace('.','',1).isdigit() else 0
-                rcalc_lots = int(np.floor(rqty_val / rlot_val)) if rlot_val > 0 else 0
-                
-                r_c4.markdown(f"<div style='font-size:11px; font-weight:600; color:#A0A0A0; margin-bottom:5px; margin-top:2px;'>TOTAL LOTS</div><div style='color:white; font-weight:bold; font-size: 16px; margin-top: 10px;'>{rcalc_lots}</div>", unsafe_allow_html=True)
-                
-                r_c5.button("Add", key="ra_add_btn", on_click=add_ra_single, use_container_width=True)
+            r_c1, r_c2, r_c3, r_c4, r_c5 = st.columns([2.5, 1.2, 1.5, 1, 1.2])
+            
+            rsym_val = r_c1.text_input("SYMBOL", key="ra_sym", placeholder="Search...").strip().upper()
+            
+            r_auto_lot = lot_dict.get(rsym_val, "") if rsym_val else ""
+            rlot_str = r_c2.text_input("LOT SIZE", value=str(int(r_auto_lot)) if r_auto_lot else "", placeholder="Auto", key="ra_lot_str")
+            
+            rqty_val = r_c3.number_input("QUANTITY", min_value=0.0, step=1.0, key="ra_qty")
+            
+            rlot_val = float(rlot_str) if rlot_str.replace('.','',1).isdigit() else 0
+            rcalc_lots = int(np.floor(rqty_val / rlot_val)) if rlot_val > 0 else 0
+            
+            r_c4.markdown(f"<div style='font-size:11px; font-weight:600; color:#A0A0A0; margin-bottom:5px; margin-top:2px;'>TOTAL LOTS</div><div style='color:white; font-weight:bold; font-size: 16px; margin-top: 10px;'>{rcalc_lots}</div>", unsafe_allow_html=True)
+            
+            r_c5.button("Add", key="ra_add_btn", on_click=add_ra_single, use_container_width=True)
