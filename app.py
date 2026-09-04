@@ -15,42 +15,26 @@ st.markdown("""
         padding-bottom: 0rem !important;
     }
     
-    h1 { font-family: 'Segoe UI', sans-serif; padding-bottom: 0px; margin-bottom: 5px; }
-    h3 { font-family: 'Segoe UI', sans-serif; font-size: 20px !important; color: white !important; margin-top: 0px !important; }
+    h1 { font-family: 'Segoe UI', sans-serif; padding-bottom: 0px; margin-bottom: 5px; color: white !important;}
     
-    /* 2. THE TRUE CARD HACK: Target the outer layout columns to act as unified cards */
-    div[data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(1) {
-        background-color: #1E1E1E !important;
-        border-left: 4px solid #3B82F6 !important;
-        padding: 20px 20px 30px 20px !important;
+    /* 2. THE TRUE CARD ENCAPSULATION */
+    /* Target the main layout columns to act as unified cards */
+    div[data-testid="column"]:nth-child(1) {
+        background-color: #1A1C23 !important; /* Dark card background */
+        border-left: 4px solid #3B82F6 !important; /* FA Blue Accent */
+        padding: 25px !important;
         border-radius: 6px !important;
+        margin-right: 10px;
     }
-    div[data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) {
-        background-color: #1E1E1E !important;
-        border-left: 4px solid #EF4444 !important;
-        padding: 20px 20px 30px 20px !important;
+    div[data-testid="column"]:nth-child(2) {
+        background-color: #1A1C23 !important; /* Dark card background */
+        border-left: 4px solid #EF4444 !important; /* RA Red Accent */
+        padding: 25px !important;
         border-radius: 6px !important;
+        margin-left: 10px;
     }
-
-    /* Prevent inner form columns from inheriting the card border */
-    div[data-testid="column"] div[data-testid="column"] {
-        border-left: none !important;
-        background-color: transparent !important;
-        padding: 0px !important;
-    }
-
-    /* 3. Fully Expanding Tables (Remove inner scrolling) */
-    [data-testid="stDataFrame"] > div > div {
-        max-height: none !important;
-        height: auto !important;
-    }
-    [data-testid="stDataFrame"] { height: auto !important; }
     
-    /* Force Data Editor Alignment */
-    [data-testid="stDataFrame"] td { text-align: right !important; }
-    [data-testid="stDataFrame"] td:nth-child(2) { text-align: left !important; } 
-    
-    /* 4. Input Fields & Buttons */
+    /* 3. Input Fields & Buttons */
     .stNumberInput input, .stTextInput input {
         color: #FFFFFF !important;
         font-weight: 600;
@@ -58,6 +42,7 @@ st.markdown("""
         border: 1px solid #333 !important;
     }
     
+    /* The Massive Add Button */
     .stButton > button {
         height: 42px !important;
         color: white !important;
@@ -67,25 +52,25 @@ st.markdown("""
     }
     
     /* FA Button Color */
-    div[data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(1) .stButton > button {
+    div[data-testid="column"]:nth-child(1) .stButton > button {
         background-color: #3B82F6 !important;
     }
-    div[data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(1) .stButton > button:hover {
+    div[data-testid="column"]:nth-child(1) .stButton > button:hover {
         background-color: #2563EB !important;
     }
     
     /* RA Button Color */
-    div[data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) .stButton > button {
+    div[data-testid="column"]:nth-child(2) .stButton > button {
         background-color: #EF4444 !important;
     }
-    div[data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) .stButton > button:hover {
+    div[data-testid="column"]:nth-child(2) .stButton > button:hover {
         background-color: #DC2626 !important;
     }
     </style>
 """, unsafe_allow_html=True)
 
 # =====================================================================
-# 2. DATA PROCESSING & PARSING FUNCTIONS
+# 2. DATA PROCESSING & HTML TABLE GENERATOR
 # =====================================================================
 @st.cache_data
 def load_lot_sizes(file):
@@ -126,6 +111,28 @@ def parse_excel_paste(raw_text):
         return True, rows
     return False, "Unable to read format."
 
+def generate_html_table(df):
+    """Converts the dataframe into a pure HTML table matching the mockup."""
+    html = '<table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #E0E0E0; margin-bottom: 30px; font-family: \'Segoe UI\', sans-serif;">'
+    html += '<thead><tr style="border-bottom: 1px solid #333;">'
+    html += '<th style="text-align: left; padding: 12px 8px; font-weight: 600; color: #A0A0A0;">NSE Symbol</th>'
+    html += '<th style="text-align: right; padding: 12px 8px; font-weight: 600; color: #A0A0A0;">Quantity</th>'
+    html += '<th style="text-align: right; padding: 12px 8px; font-weight: 600; color: #A0A0A0;">Lot Size</th>'
+    html += '<th style="text-align: right; padding: 12px 8px; font-weight: 600; color: #A0A0A0;">Total Lots</th>'
+    html += '</tr></thead><tbody>'
+    
+    for _, row in df.iterrows():
+        html += '<tr style="border-bottom: 1px solid #2A2C35;">'
+        html += f'<td style="text-align: left; padding: 12px 8px; font-weight: 500;">{row["NSE Symbol"]}</td>'
+        html += f'<td style="text-align: right; padding: 12px 8px;">{row["Quantity"]:g}</td>'
+        html += f'<td style="text-align: right; padding: 12px 8px;">{row["Lot Size"]:g}</td>'
+        html += f'<td style="text-align: right; padding: 12px 8px;">{row["Total Lots"]:.2f}</td>'
+        html += '</tr>'
+        
+    html += '</tbody></table>'
+    return html
+
+# Initialize Session States
 if 'fa_booted' not in st.session_state:
     st.session_state['fa_booted'] = False
     st.session_state['fa_repo'] = pd.DataFrame(columns=["NSE Symbol", "Quantity"])
@@ -141,7 +148,7 @@ with st.sidebar:
     master_file = st.file_uploader("Drop 'NSE Master Lot Size File' here", type=['csv'])
     lot_dict = load_lot_sizes(master_file) if master_file else {}
     st.divider()
-    st.markdown("<div style='text-align:center; font-size: 11px; color:#A0A0A0;'>Churn Dashboard v2.0</div>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align:center; font-size: 11px; color:#A0A0A0;'>Churn Dashboard v3.0</div>", unsafe_allow_html=True)
 
 # =====================================================================
 # 4. MAIN DASHBOARD UI
@@ -173,49 +180,42 @@ with tab1:
         st.dataframe(display_df, use_container_width=True)
 
 with tab2:
-    # Outer block targeted by CSS for cards
     col_fa, col_ra = st.columns(2)
     
     # --- FRESH ARBITRAGE (FA) CARD ---
     with col_fa:
-        st.markdown("<h3><span style='color:#3B82F6;'>Fresh Arbitrage</span> (FA)</h3>", unsafe_allow_html=True)
+        # Title matches mockup (White text)
+        st.markdown("<h3 style='color: white; font-size:20px; font-weight: 600; margin-bottom: 20px;'>Fresh Arbitrage (FA)</h3>", unsafe_allow_html=True)
         
+        # 1. INITIAL BOOT STATE
         if not st.session_state['fa_booted']:
-            fa_batch_input = st.text_area("FA Initial Batch", height=180, key="fa_init_box", placeholder="Paste Excel Batch Here...\nABB\t13455\nADANIENSOL\t72166")
+            fa_batch_input = st.text_area("Paste Initial FA Batch", height=180, key="fa_init_box", placeholder="ABB\t13455\nADANIENSOL\t72166\nADANIGREEN\t77918")
             if st.button("Process FA Batch", use_container_width=True):
                 success, result = parse_excel_paste(fa_batch_input)
                 if success:
                     st.session_state['fa_repo'] = pd.DataFrame(result)
                     st.session_state['fa_booted'] = True
-                    st.toast(f"✅ Success! Loaded {len(result)} FA entries.", icon='✅')
+                    st.toast(f"✅ Success! Loaded {len(result)} FA entries.", icon='✅') # Pop-up notification
                     st.rerun()
                 else:
                     st.toast(f"❌ Error: {result}", icon='❌')
+                    
+        # 2. POPULATED STATE
         else:
             fa_display = st.session_state['fa_repo'].copy()
             fa_display['NSE Symbol'] = fa_display['NSE Symbol'].astype(str).str.strip().str.upper()
             fa_display['Lot Size'] = fa_display['NSE Symbol'].map(lot_dict).fillna(0)
             
             temp_qty = pd.to_numeric(fa_display['Quantity'], errors='coerce').fillna(0)
-            fa_display['Total Lots'] = np.where(fa_display['Lot Size'] > 0, temp_qty / fa_display['Lot Size'], 0).round(2)
+            fa_display['Total Lots'] = np.where(fa_display['Lot Size'] > 0, temp_qty / fa_display['Lot Size'], 0)
             
-            # Dynamic height calculation to force table to expand
-            table_height = (len(fa_display) * 36) + 40
+            # Render Pure HTML Table
+            st.markdown(generate_html_table(fa_display), unsafe_allow_html=True)
             
-            edited_fa = st.data_editor(
-                fa_display,
-                disabled=["Lot Size", "Total Lots"], 
-                use_container_width=True,
-                height=max(table_height, 150),
-                num_rows="dynamic",
-                key="fa_editor",
-                hide_index=True
-            )
-            st.session_state['fa_repo'] = edited_fa[['NSE Symbol', 'Quantity']]
+            # Add New Entry Form
+            st.markdown("<span style='font-size: 13px; color: #3B82F6; font-weight:bold;'>+ Add New Entry</span>", unsafe_allow_html=True)
             
-            st.markdown("<br><span style='font-size: 13px; color: #3B82F6; font-weight:600;'>+ Add New Entry</span>", unsafe_allow_html=True)
-            
-            f_c1, f_c2, f_c3, f_c4, f_c5 = st.columns([2.5, 1, 1.5, 1.2, 1.2])
+            f_c1, f_c2, f_c3, f_c4, f_c5 = st.columns([2.5, 1, 1.5, 1.2, 1.5])
             with f_c1: new_fa_sym = st.text_input("SYMBOL", key="fa_sym", placeholder="Search...").strip().upper()
             with f_c2:
                 auto_lot_fa = lot_dict.get(new_fa_sym, 0) if new_fa_sym else 0
@@ -223,10 +223,8 @@ with tab2:
             with f_c3: fa_qty = st.text_input("QUANTITY", value="0", key="fa_qty_input")
             with f_c4:
                 st.markdown("<div style='font-size:11px; font-weight:600; color:#A0A0A0; margin-bottom:12px; margin-top:5px;'>TOTAL LOTS</div>", unsafe_allow_html=True)
-                try:
-                    calc_fa = (float(fa_qty) / auto_lot_fa) if auto_lot_fa > 0 else 0
-                except ValueError:
-                    calc_fa = 0
+                try: calc_fa = (float(fa_qty) / auto_lot_fa) if auto_lot_fa > 0 else 0
+                except ValueError: calc_fa = 0
                 st.markdown(f"<div style='color:white; font-weight:bold; font-size: 18px; margin-top: 8px;'>{calc_fa:.2f}</div>", unsafe_allow_html=True)
             with f_c5:    
                 if st.button("Add", key="fa_single_add", use_container_width=True):
@@ -237,16 +235,16 @@ with tab2:
 
     # --- REVERSE ARBITRAGE (RA) CARD ---
     with col_ra:
-        st.markdown("<h3><span style='color:#EF4444;'>Reverse Arbitrage</span> (RA)</h3>", unsafe_allow_html=True)
+        st.markdown("<h3 style='color: white; font-size:20px; font-weight: 600; margin-bottom: 20px;'>Reverse Arbitrage (RA)</h3>", unsafe_allow_html=True)
         
         if not st.session_state['ra_booted']:
-            ra_batch_input = st.text_area("RA Initial Batch", height=180, key="ra_init_box", placeholder="Paste Excel Batch Here...\nADANIENSOL\t72359\nALKEM\t18868")
+            ra_batch_input = st.text_area("Paste Initial RA Batch", height=180, key="ra_init_box", placeholder="ABB\t438\nALKEM\t6744\nASHOKLEY\t152750")
             if st.button("Process RA Batch", use_container_width=True):
                 success, result = parse_excel_paste(ra_batch_input)
                 if success:
                     st.session_state['ra_repo'] = pd.DataFrame(result)
                     st.session_state['ra_booted'] = True
-                    st.toast(f"✅ Success! Loaded {len(result)} RA entries.", icon='✅')
+                    st.toast(f"✅ Success! Loaded {len(result)} RA entries.", icon='✅') # Pop-up notification
                     st.rerun()
                 else:
                     st.toast(f"❌ Error: {result}", icon='❌')
@@ -256,25 +254,14 @@ with tab2:
             ra_display['Lot Size'] = ra_display['NSE Symbol'].map(lot_dict).fillna(0)
             
             temp_qty_ra = pd.to_numeric(ra_display['Quantity'], errors='coerce').fillna(0)
-            ra_display['Total Lots'] = np.where(ra_display['Lot Size'] > 0, temp_qty_ra / ra_display['Lot Size'], 0).round(2)
+            ra_display['Total Lots'] = np.where(ra_display['Lot Size'] > 0, temp_qty_ra / ra_display['Lot Size'], 0)
             
-            # Dynamic height calculation
-            table_height_ra = (len(ra_display) * 36) + 40
+            # Render Pure HTML Table
+            st.markdown(generate_html_table(ra_display), unsafe_allow_html=True)
             
-            edited_ra = st.data_editor(
-                ra_display,
-                disabled=["Lot Size", "Total Lots"],
-                use_container_width=True,
-                height=max(table_height_ra, 150),
-                num_rows="dynamic",
-                key="ra_editor",
-                hide_index=True
-            )
-            st.session_state['ra_repo'] = edited_ra[['NSE Symbol', 'Quantity']]
+            st.markdown("<span style='font-size: 13px; color: #EF4444; font-weight:bold;'>+ Add New Entry</span>", unsafe_allow_html=True)
             
-            st.markdown("<br><span style='font-size: 13px; color: #EF4444; font-weight:600;'>+ Add New Entry</span>", unsafe_allow_html=True)
-            
-            r_c1, r_c2, r_c3, r_c4, r_c5 = st.columns([2.5, 1, 1.5, 1.2, 1.2])
+            r_c1, r_c2, r_c3, r_c4, r_c5 = st.columns([2.5, 1, 1.5, 1.2, 1.5])
             with r_c1: new_ra_sym = st.text_input("SYMBOL", key="ra_sym", placeholder="Search...").strip().upper()
             with r_c2:
                 auto_lot_ra = lot_dict.get(new_ra_sym, 0) if new_ra_sym else 0
@@ -282,10 +269,8 @@ with tab2:
             with r_c3: ra_qty = st.text_input("QUANTITY", value="0", key="ra_qty_input")
             with r_c4:
                 st.markdown("<div style='font-size:11px; font-weight:600; color:#A0A0A0; margin-bottom:12px; margin-top:5px;'>TOTAL LOTS</div>", unsafe_allow_html=True)
-                try:
-                    calc_ra = (float(ra_qty) / auto_lot_ra) if auto_lot_ra > 0 else 0
-                except ValueError:
-                    calc_ra = 0
+                try: calc_ra = (float(ra_qty) / auto_lot_ra) if auto_lot_ra > 0 else 0
+                except ValueError: calc_ra = 0
                 st.markdown(f"<div style='color:white; font-weight:bold; font-size: 18px; margin-top: 8px;'>{calc_ra:.2f}</div>", unsafe_allow_html=True)
             with r_c5:
                 if st.button("Add", key="ra_single_add", use_container_width=True):
