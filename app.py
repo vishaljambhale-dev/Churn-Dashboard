@@ -18,7 +18,6 @@ st.markdown("""
     h1 { font-family: 'Segoe UI', sans-serif; padding-bottom: 0px; margin-bottom: 10px; color: white !important;}
     
     /* 2. SAFE INPUT FIELDS & BUTTON STYLING */
-    /* Only targets the actual input elements, preventing layout bleeding */
     .stNumberInput input, .stTextInput input, .stTextArea textarea {
         color: #FFFFFF !important;
         font-weight: 600;
@@ -124,7 +123,7 @@ with st.sidebar:
     master_file = st.file_uploader("Drop 'NSE Master Lot Size File' here", type=['csv'])
     lot_dict = load_lot_sizes(master_file) if master_file else {}
     st.divider()
-    st.markdown("<div style='text-align:center; font-size: 11px; color:#A0A0A0;'>Churn Dashboard v10.0</div>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align:center; font-size: 11px; color:#A0A0A0;'>Churn Dashboard v11.0</div>", unsafe_allow_html=True)
 
 if 'fa_booted' not in st.session_state:
     st.session_state.update({'fa_booted': False, 'fa_repo': pd.DataFrame()})
@@ -192,27 +191,48 @@ def add_ra_single():
 st.title("Dashboard")
 tab1, tab2 = st.tabs(["Trade Details", "Order Repository"])
 
+# ---------------------------------------------------------------------
+# TAB 1: TRADE DETAILS DASHBOARD
+# ---------------------------------------------------------------------
 with tab1:
-    pos_file = st.file_uploader("Drag and drop Net Position here to update execution view.", type=['xlsx', 'xls'])
+    t1_c1, t1_c2 = st.columns(2)
+    
+    with t1_c1:
+        client_filter = st.text_input("Client Code Filter (Optional)", placeholder="e.g. ABCD").strip().upper()
+        
+    with t1_c2:
+        pos_file = st.file_uploader("Drag and drop Net Position here to update execution view.", type=['xlsx', 'xls'])
+        
     if pos_file:
         df = load_trade_data(pos_file)
-        st.markdown("### Consolidated Summary")
-        if "Strategy" in df.columns:
-            summary = df.groupby('Strategy').agg(Qty=('BuyQty', 'sum'), Value=('BuyValue', 'sum')).reset_index()
-            if 'BPS' in df.columns:
-                bps_mean = df.groupby('Strategy')['BPS'].mean().reset_index()
-                summary = pd.merge(summary, bps_mean, on='Strategy', how='left')
-            else: summary['BPS'] = 0.0
-            summary['Value (Cr)'] = summary['Value'] / 10000000
-            summary['Value (USD - Mil)'] = summary['Value (Cr)'] / 8.6
-            summary = summary[['Strategy', 'Qty', 'Value', 'Value (Cr)', 'Value (USD - Mil)', 'BPS']]
-            st.dataframe(summary.style.format({'Value': "{:,.2f}", 'Value (Cr)': "{:.2f}", 'Value (USD - Mil)': "{:.2f}", 'BPS': "{:.6f}"}), use_container_width=True)
+        
+        # Apply Partial Match Filter
+        if client_filter and "ClientCode" in df.columns:
+            df = df[df['ClientCode'].astype(str).str.upper().str.contains(client_filter, na=False)]
+            
+        if df.empty and client_filter:
+            st.warning(f"No trades found for Client Code containing '{client_filter}'.")
+        elif not df.empty:
+            st.markdown("### Consolidated Summary")
+            if "Strategy" in df.columns:
+                summary = df.groupby('Strategy').agg(Qty=('BuyQty', 'sum'), Value=('BuyValue', 'sum')).reset_index()
+                if 'BPS' in df.columns:
+                    bps_mean = df.groupby('Strategy')['BPS'].mean().reset_index()
+                    summary = pd.merge(summary, bps_mean, on='Strategy', how='left')
+                else: summary['BPS'] = 0.0
+                summary['Value (Cr)'] = summary['Value'] / 10000000
+                summary['Value (USD - Mil)'] = summary['Value (Cr)'] / 8.6
+                summary = summary[['Strategy', 'Qty', 'Value', 'Value (Cr)', 'Value (USD - Mil)', 'BPS']]
+                st.dataframe(summary.style.format({'Value': "{:,.2f}", 'Value (Cr)': "{:.2f}", 'Value (USD - Mil)': "{:.2f}", 'BPS': "{:.6f}"}), use_container_width=True)
 
-        st.markdown("### Detailed Trade Execution View")
-        cols_to_keep = ['ClientCode', 'Strategy', 'Symbol', 'Buy_Month', 'BuyQty', 'BuyLot', 'Buypx', 'BuyValue', 'Sell_Month', 'SellQty', 'SellLot', 'Sellpx', 'SellValue', 'Div', 'BPS', 'Tally']
-        display_df = df[[c for c in cols_to_keep if c in df.columns]]
-        st.dataframe(display_df, use_container_width=True)
+            st.markdown("### Detailed Trade Execution View")
+            cols_to_keep = ['ClientCode', 'Strategy', 'Symbol', 'Buy_Month', 'BuyQty', 'BuyLot', 'Buypx', 'BuyValue', 'Sell_Month', 'SellQty', 'SellLot', 'Sellpx', 'SellValue', 'Div', 'BPS', 'Tally']
+            display_df = df[[c for c in cols_to_keep if c in df.columns]]
+            st.dataframe(display_df, use_container_width=True)
 
+# ---------------------------------------------------------------------
+# TAB 2: ORDER REPOSITORY (FA vs RA)
+# ---------------------------------------------------------------------
 with tab2:
     col_fa, col_ra = st.columns(2)
     
@@ -220,7 +240,6 @@ with tab2:
     with col_fa:
         fa_card = st.container(border=True)
         with fa_card:
-            # Clean Title with Blue Dot
             st.markdown("<h3 style='color: white; font-size:18px; font-weight: 600; margin-bottom: 20px;'><span style='color:#3B82F6;'>●</span> Fresh Arbitrage (FA)</h3>", unsafe_allow_html=True)
             
             if not st.session_state['fa_booted']:
@@ -252,7 +271,6 @@ with tab2:
     with col_ra:
         ra_card = st.container(border=True)
         with ra_card:
-            # Clean Title with Red Dot
             st.markdown("<h3 style='color: white; font-size:18px; font-weight: 600; margin-bottom: 20px;'><span style='color:#EF4444;'>●</span> Reverse Arbitrage (RA)</h3>", unsafe_allow_html=True)
             
             if not st.session_state['ra_booted']:
