@@ -19,9 +19,10 @@ st.markdown("""
     
     /* -------------------------------------------------------------
        THE BULLETPROOF CARD HACK 
-       Targets the st.container(border=True) using a hidden anchor 
+       Added broader selectors to catch the side-borders safely 
     ------------------------------------------------------------- */
-    div[data-testid="stVerticalBlockBorderWrapper"]:has(.fa-anchor) {
+    div[data-testid="stVerticalBlockBorderWrapper"]:has(.fa-anchor),
+    div[data-testid="stVerticalBlock"]:has(.fa-anchor) > div {
         background-color: #1A1C23 !important; 
         border: none !important;
         border-left: 4px solid #3B82F6 !important; /* FA Blue Accent */
@@ -29,7 +30,8 @@ st.markdown("""
         border-radius: 6px !important;
     }
     
-    div[data-testid="stVerticalBlockBorderWrapper"]:has(.ra-anchor) {
+    div[data-testid="stVerticalBlockBorderWrapper"]:has(.ra-anchor),
+    div[data-testid="stVerticalBlock"]:has(.ra-anchor) > div {
         background-color: #1A1C23 !important; 
         border: none !important;
         border-left: 4px solid #EF4444 !important; /* RA Red Accent */
@@ -71,7 +73,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =====================================================================
-# 2. DATA PROCESSING & HTML TABLE GENERATOR
+# 2. DATA PROCESSING & HIGH-DENSITY HTML TABLE GENERATOR
 # =====================================================================
 @st.cache_data
 def load_lot_sizes(file):
@@ -113,30 +115,30 @@ def parse_excel_paste(raw_text):
     return False, "Unable to read format."
 
 def generate_html_table(df):
-    """Generates a non-scrollable HTML table with prominent headers."""
+    """Generates a hyper-dense, non-scrollable HTML table with prominent headers."""
     if 'Lot Size' not in df.columns: df['Lot Size'] = 0
     df['Total Lots'] = np.where(df['Lot Size'] > 0, np.floor(df['Quantity'] / df['Lot Size']), 0)
     
-    # Notice: NO max-height or overflow properties. It will expand completely.
     html = '<div style="margin-bottom: 25px;">'
-    html += '<table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #E0E0E0; font-family: \'Segoe UI\', sans-serif;">'
+    # Reduced font-size to 11px for maximum density
+    html += '<table style="width: 100%; border-collapse: collapse; font-size: 11px; color: #E0E0E0; font-family: \'Segoe UI\', sans-serif;">'
     
     # Prominent Header Row
     html += '<thead style="background-color: #2D303E; border-bottom: 2px solid #555;"><tr>'
-    html += '<th style="text-align: left; padding: 10px 12px; font-weight: 700; color: #FFFFFF; font-size: 14px; width: 40%;">NSE Symbol</th>'
-    html += '<th style="text-align: right; padding: 10px 12px; font-weight: 700; color: #FFFFFF; font-size: 14px; width: 20%;">Quantity</th>'
-    html += '<th style="text-align: right; padding: 10px 12px; font-weight: 700; color: #FFFFFF; font-size: 14px; width: 20%;">Lot Size</th>'
-    html += '<th style="text-align: right; padding: 10px 12px; font-weight: 700; color: #FFFFFF; font-size: 14px; width: 20%;">Total Lots</th>'
+    html += '<th style="text-align: left; padding: 6px 6px; font-weight: 700; color: #FFFFFF; width: 40%;">NSE Symbol</th>'
+    html += '<th style="text-align: right; padding: 6px 6px; font-weight: 700; color: #FFFFFF; width: 20%;">Quantity</th>'
+    html += '<th style="text-align: right; padding: 6px 6px; font-weight: 700; color: #FFFFFF; width: 20%;">Lot Size</th>'
+    html += '<th style="text-align: right; padding: 6px 6px; font-weight: 700; color: #FFFFFF; width: 20%;">Total Lots</th>'
     html += '</tr></thead><tbody>'
     
-    # Rows with Zebra Striping
+    # Rows with Zebra Striping and extremely tight padding
     for i, row in df.iterrows():
         bg_color = "#1A1C23" if i % 2 == 0 else "#22242C"
         html += f'<tr style="background-color: {bg_color}; border-bottom: 1px solid #2A2C35;">'
-        html += f'<td style="text-align: left; padding: 8px 12px; font-weight: 500;">{row.get("NSE Symbol", "")}</td>'
-        html += f'<td style="text-align: right; padding: 8px 12px;">{row.get("Quantity", 0):g}</td>'
-        html += f'<td style="text-align: right; padding: 8px 12px;">{row.get("Lot Size", 0):g}</td>'
-        html += f'<td style="text-align: right; padding: 8px 12px;">{int(row.get("Total Lots", 0))}</td>'
+        html += f'<td style="text-align: left; padding: 2px 6px; font-weight: 500;">{row.get("NSE Symbol", "")}</td>'
+        html += f'<td style="text-align: right; padding: 2px 6px;">{row.get("Quantity", 0):g}</td>'
+        html += f'<td style="text-align: right; padding: 2px 6px;">{row.get("Lot Size", 0):g}</td>'
+        html += f'<td style="text-align: right; padding: 2px 6px;">{int(row.get("Total Lots", 0))}</td>'
         html += '</tr>'
         
     html += '</tbody></table></div>'
@@ -156,7 +158,7 @@ with st.sidebar:
     master_file = st.file_uploader("Drop 'NSE Master Lot Size File' here", type=['csv'])
     lot_dict = load_lot_sizes(master_file) if master_file else {}
     st.divider()
-    st.markdown("<div style='text-align:center; font-size: 11px; color:#A0A0A0;'>Churn Dashboard v6.0</div>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align:center; font-size: 11px; color:#A0A0A0;'>Churn Dashboard v7.0</div>", unsafe_allow_html=True)
 
 # Callbacks for Batch Processing
 def process_fa_batch():
@@ -242,35 +244,28 @@ with tab2:
     
     # --- FRESH ARBITRAGE (FA) CARD ---
     with col_fa:
-        # Container(border=True) ensures the CSS targets the correct wrapper
         fa_card = st.container(border=True)
         with fa_card:
-            # The hidden anchor allowing CSS to find this specific container
             st.markdown("<div class='fa-anchor'></div>", unsafe_allow_html=True)
+            st.markdown("<h3 style='color: white; font-size:18px; font-weight: 600; margin-bottom: 20px;'>Fresh Arbitrage (FA)</h3>", unsafe_allow_html=True)
             
-            # White Title
-            st.markdown("<h3 style='color: white; font-size:20px; font-weight: 600; margin-bottom: 20px;'>Fresh Arbitrage (FA)</h3>", unsafe_allow_html=True)
-            
-            # Boot State
             if not st.session_state['fa_booted']:
                 st.text_area("Paste Excel Batch (Symbol & Quantity)", height=150, key="fa_init_box", placeholder="ABB\t13455\nADANIENSOL\t72166...")
                 st.button("Process Initial FA Batch", use_container_width=True, on_click=process_fa_batch)
             
-            # Populated State
             else:
                 fa_display = st.session_state['fa_repo'].copy()
                 st.markdown(generate_html_table(fa_display), unsafe_allow_html=True)
                 
                 st.markdown("<span style='font-size: 13px; color: #3B82F6; font-weight:bold;'>+ Add New Entry</span>", unsafe_allow_html=True)
                 
-                f_c1, f_c2, f_c3, f_c4, f_c5 = st.columns([2.5, 1.2, 1.5, 1, 1.2])
+                f_c1, f_c2, f_c3, f_c4, f_c5 = st.columns([2.5, 1.5, 1.2, 1, 1.2])
                 
                 sym_val = f_c1.text_input("SYMBOL", key="fa_sym", placeholder="Search...").strip().upper()
+                qty_val = f_c2.number_input("QUANTITY", min_value=0.0, step=1.0, key="fa_qty")
                 
                 auto_lot = lot_dict.get(sym_val, "") if sym_val else ""
-                lot_str = f_c2.text_input("LOT SIZE", value=str(int(auto_lot)) if auto_lot else "", placeholder="Auto", key="fa_lot_str")
-                
-                qty_val = f_c3.number_input("QUANTITY", min_value=0.0, step=1.0, key="fa_qty")
+                lot_str = f_c3.text_input("LOT SIZE", value=str(int(auto_lot)) if auto_lot else "", placeholder="Auto", key="fa_lot_str")
                 
                 lot_val = float(lot_str) if lot_str.replace('.','',1).isdigit() else 0
                 calc_lots = int(np.floor(qty_val / lot_val)) if lot_val > 0 else 0
@@ -284,25 +279,25 @@ with tab2:
         ra_card = st.container(border=True)
         with ra_card:
             st.markdown("<div class='ra-anchor'></div>", unsafe_allow_html=True)
-            st.markdown("<h3 style='color: white; font-size:20px; font-weight: 600; margin-bottom: 20px;'>Reverse Arbitrage (RA)</h3>", unsafe_allow_html=True)
+            st.markdown("<h3 style='color: white; font-size:18px; font-weight: 600; margin-bottom: 20px;'>Reverse Arbitrage (RA)</h3>", unsafe_allow_html=True)
             
             if not st.session_state['ra_booted']:
                 st.text_area("Paste Excel Batch (Symbol & Quantity)", height=150, key="ra_init_box", placeholder="ALKEM\t6744\nASHOKLEY\t152750...")
                 st.button("Process Initial RA Batch", use_container_width=True, on_click=process_ra_batch)
+            
             else:
                 ra_display = st.session_state['ra_repo'].copy()
                 st.markdown(generate_html_table(ra_display), unsafe_allow_html=True)
                 
                 st.markdown("<span style='font-size: 13px; color: #EF4444; font-weight:bold;'>+ Add New Entry</span>", unsafe_allow_html=True)
                 
-                r_c1, r_c2, r_c3, r_c4, r_c5 = st.columns([2.5, 1.2, 1.5, 1, 1.2])
+                r_c1, r_c2, r_c3, r_c4, r_c5 = st.columns([2.5, 1.5, 1.2, 1, 1.2])
                 
                 rsym_val = r_c1.text_input("SYMBOL", key="ra_sym", placeholder="Search...").strip().upper()
+                rqty_val = r_c2.number_input("QUANTITY", min_value=0.0, step=1.0, key="ra_qty")
                 
                 r_auto_lot = lot_dict.get(rsym_val, "") if rsym_val else ""
-                rlot_str = r_c2.text_input("LOT SIZE", value=str(int(r_auto_lot)) if r_auto_lot else "", placeholder="Auto", key="ra_lot_str")
-                
-                rqty_val = r_c3.number_input("QUANTITY", min_value=0.0, step=1.0, key="ra_qty")
+                rlot_str = r_c3.text_input("LOT SIZE", value=str(int(r_auto_lot)) if r_auto_lot else "", placeholder="Auto", key="ra_lot_str")
                 
                 rlot_val = float(rlot_str) if rlot_str.replace('.','',1).isdigit() else 0
                 rcalc_lots = int(np.floor(rqty_val / rlot_val)) if rlot_val > 0 else 0
