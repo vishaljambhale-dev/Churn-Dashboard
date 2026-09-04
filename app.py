@@ -121,7 +121,7 @@ with st.sidebar:
     master_file = st.file_uploader("Drop 'NSE Master Lot Size File' here", type=['csv'])
     lot_dict = load_lot_sizes(master_file) if master_file else {}
     st.divider()
-    st.markdown("<div style='text-align:center; font-size: 11px; color:#A0A0A0;'>Churn Dashboard v12.0</div>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align:center; font-size: 11px; color:#A0A0A0;'>Churn Dashboard v13.0</div>", unsafe_allow_html=True)
 
 if 'fa_booted' not in st.session_state:
     st.session_state.update({'fa_booted': False, 'fa_repo': pd.DataFrame()})
@@ -213,14 +213,12 @@ with tab1:
         elif not df.empty:
             
             st.markdown("### Consolidated Summary")
-            # 1. We create a placeholder block at the top to hold the summary.
             summary_placeholder = st.empty()
             
             st.markdown("### Detailed Trade Execution View")
             cols_to_keep = ['ClientCode', 'Strategy', 'Symbol', 'Buy_Month', 'BuyQty', 'BuyLot', 'Buypx', 'BuyValue', 'Sell_Month', 'SellQty', 'SellLot', 'Sellpx', 'SellValue', 'Div', 'BPS', 'Tally']
             display_df = df[[c for c in cols_to_keep if c in df.columns]]
             
-            # 2. Create the Editable Dataframe (Locking everything except 'BPS')
             disabled_columns = [col for col in display_df.columns if col != 'BPS']
             
             edited_df = st.data_editor(
@@ -231,24 +229,27 @@ with tab1:
                 key="trade_details_editor"
             )
             
-            # 3. Recalculate Summary metrics using the EDITED dataframe
             if "Strategy" in edited_df.columns:
                 summary = edited_df.groupby('Strategy').agg(Qty=('BuyQty', 'sum'), Value=('BuyValue', 'sum')).reset_index()
                 
-                if 'BPS' in edited_df.columns:
-                    # This will now capture your manual edits instantly
-                    bps_mean = edited_df.groupby('Strategy')['BPS'].mean().reset_index()
-                    summary = pd.merge(summary, bps_mean, on='Strategy', how='left')
+                # --- QUANTITY-WEIGHTED BPS CALCULATION ---
+                if 'BPS' in edited_df.columns and 'BuyQty' in edited_df.columns:
+                    def calc_weighted_bps(x):
+                        total_qty = x['BuyQty'].sum()
+                        if total_qty == 0:
+                            return 0.0
+                        return (x['BPS'] * x['BuyQty']).sum() / total_qty
+                        
+                    bps_weighted = edited_df.groupby('Strategy').apply(calc_weighted_bps).reset_index(name='BPS')
+                    summary = pd.merge(summary, bps_weighted, on='Strategy', how='left')
                 else: 
                     summary['BPS'] = 0.0
                 
-                # Corrected Math: Assuming incoming Value is already in Crores
                 summary['Value (Cr)'] = summary['Value']
                 summary['Value (USD - Mil)'] = summary['Value (Cr)'] / 8.6
                 
                 summary = summary[['Strategy', 'Qty', 'Value', 'Value (Cr)', 'Value (USD - Mil)', 'BPS']]
                 
-                # 4. Inject the final calculated summary back up into the placeholder
                 summary_placeholder.dataframe(
                     summary.style.format({
                         'Value': "{:,.2f}", 
