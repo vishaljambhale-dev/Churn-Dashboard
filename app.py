@@ -9,37 +9,40 @@ st.set_page_config(page_title="Dashboard", layout="wide", initial_sidebar_state=
 
 st.markdown("""
     <style>
-    /* 1. Reduce top whitespace */
+    /* 1. Adjust main whitespace */
     .block-container {
         padding-top: 1.5rem !important;
-        padding-bottom: 0rem !important;
+        padding-bottom: 2rem !important;
     }
     
     h1 { font-family: 'Segoe UI', sans-serif; padding-bottom: 0px; margin-bottom: 10px; color: white !important;}
     
-    /* 2. THE TRUE CARD ENCAPSULATION */
-    /* Target the main 2-column layout to act as unified cards */
-    div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(1) {
+    /* 2. ROBUST CARD ENCAPSULATION USING :has() */
+    /* This guarantees the background and border applies to the entire column block */
+    div[data-testid="column"]:has(.fa-anchor) {
         background-color: #1A1C23 !important; 
         border-left: 4px solid #3B82F6 !important; /* FA Blue Accent */
-        padding: 20px !important;
+        padding: 25px !important;
         border-radius: 6px !important;
+        margin-right: 10px;
     }
-    div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(2) {
+    div[data-testid="column"]:has(.ra-anchor) {
         background-color: #1A1C23 !important; 
         border-left: 4px solid #EF4444 !important; /* RA Red Accent */
-        padding: 20px !important;
+        padding: 25px !important;
         border-radius: 6px !important;
+        margin-left: 10px;
     }
     
-    /* Prevent the inner form columns (5 columns) from inheriting the card styles */
-    div[data-testid="stHorizontalBlock"] div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+    /* Stop inner layout columns (like the Add Form) from inheriting the card borders */
+    div[data-testid="column"] div[data-testid="column"] {
         background-color: transparent !important;
         border-left: none !important;
         padding: 0px !important;
+        margin: 0px !important;
     }
     
-    /* 3. Input Fields & Buttons */
+    /* 3. Input Fields & Default Buttons */
     .stNumberInput input, .stTextInput input, .stTextArea textarea {
         color: #FFFFFF !important;
         font-weight: 600;
@@ -54,22 +57,11 @@ st.markdown("""
         text-transform: uppercase !important;
     }
     
-    /* The Massive Add Button aligned with inputs */
+    /* Align the standard Add Button with the inputs */
     .stButton > button {
         height: 40px !important;
-        color: white !important;
-        font-weight: bold !important;
-        border: none !important;
         margin-top: 25px !important; 
     }
-    
-    /* FA Button Color */
-    div[data-testid="column"]:nth-child(1) .stButton > button { background-color: #3B82F6 !important; }
-    div[data-testid="column"]:nth-child(1) .stButton > button:hover { background-color: #2563EB !important; }
-    
-    /* RA Button Color */
-    div[data-testid="column"]:nth-child(2) .stButton > button { background-color: #EF4444 !important; }
-    div[data-testid="column"]:nth-child(2) .stButton > button:hover { background-color: #DC2626 !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -116,29 +108,31 @@ def parse_excel_paste(raw_text):
     return False, "Unable to read format."
 
 def generate_html_table(df):
-    """Generates a high-density pure HTML table matching the mockup."""
-    # Ensure Total Lots is strictly rounded down to nearest integer
+    """Generates a high-density, zebra-striped HTML table."""
     if 'Lot Size' not in df.columns: df['Lot Size'] = 0
     df['Total Lots'] = np.where(df['Lot Size'] > 0, np.floor(df['Quantity'] / df['Lot Size']), 0)
     
-    # Using 12px font and 4px padding for maximum density
-    html = '<table style="width: 100%; border-collapse: collapse; font-size: 12px; color: #E0E0E0; margin-bottom: 25px; font-family: \'Segoe UI\', sans-serif;">'
-    html += '<thead><tr style="border-bottom: 1px solid #444;">'
-    html += '<th style="text-align: left; padding: 4px 8px; font-weight: 600; color: #A0A0A0;">NSE Symbol</th>'
-    html += '<th style="text-align: right; padding: 4px 8px; font-weight: 600; color: #A0A0A0;">Quantity</th>'
-    html += '<th style="text-align: right; padding: 4px 8px; font-weight: 600; color: #A0A0A0;">Lot Size</th>'
-    html += '<th style="text-align: right; padding: 4px 8px; font-weight: 600; color: #A0A0A0;">Total Lots</th>'
+    # Scrollable container with fixed column widths to prevent excessive spacing
+    html = '<div style="max-height: 450px; overflow-y: auto; margin-bottom: 25px; border-bottom: 1px solid #333;">'
+    html += '<table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #E0E0E0; font-family: \'Segoe UI\', sans-serif;">'
+    html += '<thead style="position: sticky; top: 0; background-color: #1A1C23; z-index: 1;"><tr style="border-bottom: 1px solid #444;">'
+    html += '<th style="text-align: left; padding: 6px 10px; font-weight: 600; color: #A0A0A0; width: 40%;">NSE Symbol</th>'
+    html += '<th style="text-align: right; padding: 6px 10px; font-weight: 600; color: #A0A0A0; width: 20%;">Quantity</th>'
+    html += '<th style="text-align: right; padding: 6px 10px; font-weight: 600; color: #A0A0A0; width: 20%;">Lot Size</th>'
+    html += '<th style="text-align: right; padding: 6px 10px; font-weight: 600; color: #A0A0A0; width: 20%;">Total Lots</th>'
     html += '</tr></thead><tbody>'
     
-    for _, row in df.iterrows():
-        html += '<tr style="border-bottom: 1px solid #2A2C35;">'
-        html += f'<td style="text-align: left; padding: 4px 8px; font-weight: 500;">{row.get("NSE Symbol", "")}</td>'
-        html += f'<td style="text-align: right; padding: 4px 8px;">{row.get("Quantity", 0):g}</td>'
-        html += f'<td style="text-align: right; padding: 4px 8px;">{row.get("Lot Size", 0):g}</td>'
-        html += f'<td style="text-align: right; padding: 4px 8px;">{int(row.get("Total Lots", 0))}</td>'
+    for i, row in df.iterrows():
+        # Zebra striping for readability
+        bg_color = "#1A1C23" if i % 2 == 0 else "#22242C"
+        html += f'<tr style="background-color: {bg_color}; border-bottom: 1px solid #2A2C35;">'
+        html += f'<td style="text-align: left; padding: 6px 10px; font-weight: 500;">{row.get("NSE Symbol", "")}</td>'
+        html += f'<td style="text-align: right; padding: 6px 10px;">{row.get("Quantity", 0):g}</td>'
+        html += f'<td style="text-align: right; padding: 6px 10px;">{row.get("Lot Size", 0):g}</td>'
+        html += f'<td style="text-align: right; padding: 6px 10px;">{int(row.get("Total Lots", 0))}</td>'
         html += '</tr>'
         
-    html += '</tbody></table>'
+    html += '</tbody></table></div>'
     return html
 
 # Initialize Global Session States
@@ -155,7 +149,7 @@ with st.sidebar:
     master_file = st.file_uploader("Drop 'NSE Master Lot Size File' here", type=['csv'])
     lot_dict = load_lot_sizes(master_file) if master_file else {}
     st.divider()
-    st.markdown("<div style='text-align:center; font-size: 11px; color:#A0A0A0;'>Churn Dashboard v4.1</div>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align:center; font-size: 11px; color:#A0A0A0;'>Churn Dashboard v5.0</div>", unsafe_allow_html=True)
 
 # Callbacks for Batch Processing
 def process_fa_batch():
@@ -241,19 +235,17 @@ with tab2:
     
     # --- FRESH ARBITRAGE (FA) CARD ---
     with col_fa:
-        st.markdown("<h3 style='color: white; font-size:18px; font-weight: 600; margin-bottom: 15px;'>Fresh Arbitrage (FA)</h3>", unsafe_allow_html=True)
+        st.markdown("<div class='fa-anchor'></div>", unsafe_allow_html=True)
+        st.markdown("<h3 style='color: white; font-size:18px; font-weight: 600; margin-bottom: 20px;'>Fresh Arbitrage (FA)</h3>", unsafe_allow_html=True)
         
-        # BOOT STATE
         if not st.session_state['fa_booted']:
             st.text_area("Paste Excel Batch (Symbol & Quantity)", height=150, key="fa_init_box", placeholder="ABB\t13455\nADANIENSOL\t72166...")
             st.button("Process Initial FA Batch", use_container_width=True, on_click=process_fa_batch)
-        
-        # POPULATED STATE
         else:
             fa_display = st.session_state['fa_repo'].copy()
             st.markdown(generate_html_table(fa_display), unsafe_allow_html=True)
             
-            st.markdown("<span style='font-size: 12px; color: #3B82F6; font-weight:bold;'>+ Add New Entry</span>", unsafe_allow_html=True)
+            st.markdown("<span style='font-size: 13px; color: #3B82F6; font-weight:bold;'>+ Add New Entry</span>", unsafe_allow_html=True)
             
             f_c1, f_c2, f_c3, f_c4, f_c5 = st.columns([2.5, 1.2, 1.5, 1, 1.2])
             
@@ -273,17 +265,17 @@ with tab2:
 
     # --- REVERSE ARBITRAGE (RA) CARD ---
     with col_ra:
-        st.markdown("<h3 style='color: white; font-size:18px; font-weight: 600; margin-bottom: 15px;'>Reverse Arbitrage (RA)</h3>", unsafe_allow_html=True)
+        st.markdown("<div class='ra-anchor'></div>", unsafe_allow_html=True)
+        st.markdown("<h3 style='color: white; font-size:18px; font-weight: 600; margin-bottom: 20px;'>Reverse Arbitrage (RA)</h3>", unsafe_allow_html=True)
         
         if not st.session_state['ra_booted']:
             st.text_area("Paste Excel Batch (Symbol & Quantity)", height=150, key="ra_init_box", placeholder="ALKEM\t6744\nASHOKLEY\t152750...")
             st.button("Process Initial RA Batch", use_container_width=True, on_click=process_ra_batch)
-        
         else:
             ra_display = st.session_state['ra_repo'].copy()
             st.markdown(generate_html_table(ra_display), unsafe_allow_html=True)
             
-            st.markdown("<span style='font-size: 12px; color: #EF4444; font-weight:bold;'>+ Add New Entry</span>", unsafe_allow_html=True)
+            st.markdown("<span style='font-size: 13px; color: #EF4444; font-weight:bold;'>+ Add New Entry</span>", unsafe_allow_html=True)
             
             r_c1, r_c2, r_c3, r_c4, r_c5 = st.columns([2.5, 1.2, 1.5, 1, 1.2])
             
@@ -300,3 +292,6 @@ with tab2:
             r_c4.markdown(f"<div style='font-size:11px; font-weight:600; color:#A0A0A0; margin-bottom:5px; margin-top:2px;'>TOTAL LOTS</div><div style='color:white; font-weight:bold; font-size: 16px; margin-top: 10px;'>{rcalc_lots}</div>", unsafe_allow_html=True)
             
             r_c5.button("Add", key="ra_add_btn", on_click=add_ra_single, use_container_width=True)
+
+# Add a massive transparent buffer at the bottom of the page to prevent "Manage app" toggle overlap
+st.markdown("<div style='height: 100px; width: 100%;'></div>", unsafe_allow_html=True)
