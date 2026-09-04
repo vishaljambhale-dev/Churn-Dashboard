@@ -18,10 +18,30 @@ st.markdown("""
     h1 { font-family: 'Segoe UI', sans-serif; padding-bottom: 0px; margin-bottom: 10px; color: white !important;}
     
     /* 2. CARD BACKGROUND ENFORCEMENT */
-    div[data-testid="stVerticalBlockBorderWrapper"] {
+    div[data-testid="stVerticalBlockBorderWrapper"]:has(.fa-anchor),
+    div[data-testid="stVerticalBlock"]:has(.fa-anchor) > div {
         background-color: #1A1C23 !important; 
-        border: 1px solid #333 !important;
+        border: none !important;
+        border-left: 4px solid #3B82F6 !important; /* FA Blue Accent */
+        padding: 20px !important;
         border-radius: 6px !important;
+    }
+    
+    div[data-testid="stVerticalBlockBorderWrapper"]:has(.ra-anchor),
+    div[data-testid="stVerticalBlock"]:has(.ra-anchor) > div {
+        background-color: #1A1C23 !important; 
+        border: none !important;
+        border-left: 4px solid #EF4444 !important; /* RA Red Accent */
+        padding: 20px !important;
+        border-radius: 6px !important;
+    }
+    
+    /* Stop inner columns from inheriting card borders */
+    div[data-testid="column"] div[data-testid="column"] {
+        background-color: transparent !important;
+        border-left: none !important;
+        padding: 0px !important;
+        margin: 0px !important;
     }
     
     /* 3. INPUT FIELDS & BUTTON STYLING */
@@ -56,7 +76,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =====================================================================
-# 2. DATA PROCESSING & HTML TABLE GENERATOR
+# 2. CORE DATA FUNCTIONS
 # =====================================================================
 @st.cache_data
 def load_lot_sizes(file):
@@ -103,7 +123,6 @@ def generate_html_table(df):
     
     html = '<div style="margin-bottom: 25px;">'
     html += '<table style="width: 100%; border-collapse: collapse; font-size: 11px; color: #E0E0E0; font-family: \'Segoe UI\', sans-serif;">'
-    
     html += '<thead style="background-color: #2D303E; border-bottom: 2px solid #555;"><tr>'
     html += '<th style="text-align: left; padding: 6px 6px; font-weight: 700; color: #FFFFFF; width: 40%;">NSE Symbol</th>'
     html += '<th style="text-align: right; padding: 6px 6px; font-weight: 700; color: #FFFFFF; width: 20%;">Quantity</th>'
@@ -123,6 +142,16 @@ def generate_html_table(df):
     html += '</tbody></table></div>'
     return html
 
+# =====================================================================
+# 3. SIDEBAR & FILE LOADING (MOVED TO TOP FOR CALLBACK ACCESS)
+# =====================================================================
+with st.sidebar:
+    st.markdown("## Trading Setup")
+    master_file = st.file_uploader("Drop 'NSE Master Lot Size File' here", type=['csv'])
+    lot_dict = load_lot_sizes(master_file) if master_file else {}
+    st.divider()
+    st.markdown("<div style='text-align:center; font-size: 11px; color:#A0A0A0;'>Churn Dashboard v9.2</div>", unsafe_allow_html=True)
+
 # Initialize Global Session States
 if 'fa_booted' not in st.session_state:
     st.session_state.update({'fa_booted': False, 'fa_repo': pd.DataFrame()})
@@ -136,17 +165,70 @@ if 'ra_sym_input' not in st.session_state: st.session_state.ra_sym_input = ""
 if 'ra_qty_input' not in st.session_state: st.session_state.ra_qty_input = 0.0
 
 # =====================================================================
-# 3. SIDEBAR & FILE LOADING
+# 4. CALLBACK FUNCTIONS (MUST FIRE BEFORE UI RENDERS)
 # =====================================================================
-with st.sidebar:
-    st.markdown("## Trading Setup")
-    master_file = st.file_uploader("Drop 'NSE Master Lot Size File' here", type=['csv'])
-    lot_dict = load_lot_sizes(master_file) if master_file else {}
-    st.divider()
-    st.markdown("<div style='text-align:center; font-size: 11px; color:#A0A0A0;'>Churn Dashboard v9.1</div>", unsafe_allow_html=True)
+def process_fa_batch():
+    raw = st.session_state.fa_init_box
+    success, res = parse_excel_paste(raw)
+    if success:
+        df = pd.DataFrame(res)
+        df['Lot Size'] = df['NSE Symbol'].map(lot_dict).fillna(0)
+        st.session_state['fa_repo'] = df
+        st.session_state['fa_booted'] = True
+        st.toast(f"✅ Success! Loaded {len(res)} FA entries.", icon="✅")
+    else:
+        st.toast(f"❌ Error: {res}", icon="❌")
+
+def process_ra_batch():
+    raw = st.session_state.ra_init_box
+    success, res = parse_excel_paste(raw)
+    if success:
+        df = pd.DataFrame(res)
+        df['Lot Size'] = df['NSE Symbol'].map(lot_dict).fillna(0)
+        st.session_state['ra_repo'] = df
+        st.session_state['ra_booted'] = True
+        st.toast(f"✅ Success! Loaded {len(res)} RA entries.", icon="✅")
+    else:
+        st.toast(f"❌ Error: {res}", icon="❌")
+
+def add_fa_single():
+    sym = st.session_state.fa_sym_input.strip().upper()
+    qty = float(st.session_state.fa_qty_input)
+    auto_lot = lot_dict.get(sym, 0)
+    
+    if not sym:
+        st.toast("⚠️ Please enter a Symbol.", icon="⚠️")
+    elif auto_lot <= 0:
+        st.toast(f"❌ Lot size for '{sym}' not found in Master file.", icon="❌")
+    elif qty <= 0:
+        st.toast("⚠️ Please enter a Quantity greater than 0.", icon="⚠️")
+    else:
+        new_row = pd.DataFrame([{"NSE Symbol": sym, "Quantity": qty, "Lot Size": auto_lot}])
+        st.session_state['fa_repo'] = pd.concat([st.session_state['fa_repo'], new_row], ignore_index=True)
+        # Clear fields safely
+        st.session_state.fa_sym_input = ""
+        st.session_state.fa_qty_input = 0.0
+
+def add_ra_single():
+    sym = st.session_state.ra_sym_input.strip().upper()
+    qty = float(st.session_state.ra_qty_input)
+    auto_lot = lot_dict.get(sym, 0)
+    
+    if not sym:
+        st.toast("⚠️ Please enter a Symbol.", icon="⚠️")
+    elif auto_lot <= 0:
+        st.toast(f"❌ Lot size for '{sym}' not found in Master file.", icon="❌")
+    elif qty <= 0:
+        st.toast("⚠️ Please enter a Quantity greater than 0.", icon="⚠️")
+    else:
+        new_row = pd.DataFrame([{"NSE Symbol": sym, "Quantity": qty, "Lot Size": auto_lot}])
+        st.session_state['ra_repo'] = pd.concat([st.session_state['ra_repo'], new_row], ignore_index=True)
+        # Clear fields safely
+        st.session_state.ra_sym_input = ""
+        st.session_state.ra_qty_input = 0.0
 
 # =====================================================================
-# 4. MAIN DASHBOARD UI
+# 5. MAIN DASHBOARD UI
 # =====================================================================
 st.title("Dashboard")
 tab1, tab2 = st.tabs(["Trade Details", "Order Repository"])
@@ -179,22 +261,13 @@ with tab2:
     with col_fa:
         fa_card = st.container(border=True)
         with fa_card:
+            st.markdown("<div class='fa-anchor'></div>", unsafe_allow_html=True)
             st.markdown("<h3 style='color: white; font-size:18px; font-weight: 600; margin-bottom: 20px;'><span style='color:#3B82F6;'>●</span> Fresh Arbitrage (FA)</h3>", unsafe_allow_html=True)
             
             if not st.session_state['fa_booted']:
                 st.text_area("Paste Excel Batch (Symbol & Quantity)", height=150, key="fa_init_box", placeholder="ABB\t13455\nADANIENSOL\t72166...")
-                if st.button("Process Initial FA Batch", use_container_width=True):
-                    raw = st.session_state.fa_init_box
-                    success, res = parse_excel_paste(raw)
-                    if success:
-                        df_res = pd.DataFrame(res)
-                        df_res['Lot Size'] = df_res['NSE Symbol'].map(lot_dict).fillna(0)
-                        st.session_state['fa_repo'] = df_res
-                        st.session_state['fa_booted'] = True
-                        st.toast(f"✅ Success! Loaded {len(res)} FA entries.", icon="✅")
-                        st.rerun()
-                    else:
-                        st.toast(f"❌ Error: {res}", icon="❌")
+                st.button("Process Initial FA Batch", use_container_width=True, on_click=process_fa_batch)
+            
             else:
                 fa_display = st.session_state['fa_repo'].copy()
                 st.markdown(generate_html_table(fa_display), unsafe_allow_html=True)
@@ -214,41 +287,19 @@ with tab2:
                 calc_lots = int(np.floor(qty_val / auto_lot)) if auto_lot > 0 else 0
                 f_c4.markdown(f"<div style='font-size:11px; font-weight:600; color:#A0A0A0; margin-bottom:5px; margin-top:2px;'>TOTAL LOTS</div><div style='color:white; font-weight:bold; font-size: 16px; margin-top: 10px;'>{calc_lots}</div>", unsafe_allow_html=True)
                 
-                # Procedural Add Logic
-                if f_c5.button("Add", key="fa_add_btn", use_container_width=True):
-                    if not sym_val:
-                        st.toast("⚠️ Please enter a Symbol.", icon="⚠️")
-                    elif auto_lot <= 0:
-                        st.toast(f"❌ Lot size for '{sym_val}' not found in Master file.", icon="❌")
-                    elif qty_val <= 0:
-                        st.toast("⚠️ Please enter a Quantity greater than 0.", icon="⚠️")
-                    else:
-                        new_row = pd.DataFrame([{"NSE Symbol": sym_val, "Quantity": qty_val, "Lot Size": auto_lot}])
-                        st.session_state['fa_repo'] = pd.concat([st.session_state['fa_repo'], new_row], ignore_index=True)
-                        st.session_state.fa_sym_input = ""
-                        st.session_state.fa_qty_input = 0.0
-                        st.rerun()
+                f_c5.button("Add", key="fa_add_btn", on_click=add_fa_single, use_container_width=True)
 
     # --- REVERSE ARBITRAGE (RA) CARD ---
     with col_ra:
         ra_card = st.container(border=True)
         with ra_card:
+            st.markdown("<div class='ra-anchor'></div>", unsafe_allow_html=True)
             st.markdown("<h3 style='color: white; font-size:18px; font-weight: 600; margin-bottom: 20px;'><span style='color:#EF4444;'>●</span> Reverse Arbitrage (RA)</h3>", unsafe_allow_html=True)
             
             if not st.session_state['ra_booted']:
                 st.text_area("Paste Excel Batch (Symbol & Quantity)", height=150, key="ra_init_box", placeholder="ALKEM\t6744\nASHOKLEY\t152750...")
-                if st.button("Process Initial RA Batch", use_container_width=True):
-                    raw = st.session_state.ra_init_box
-                    success, res = parse_excel_paste(raw)
-                    if success:
-                        df_res = pd.DataFrame(res)
-                        df_res['Lot Size'] = df_res['NSE Symbol'].map(lot_dict).fillna(0)
-                        st.session_state['ra_repo'] = df_res
-                        st.session_state['ra_booted'] = True
-                        st.toast(f"✅ Success! Loaded {len(res)} RA entries.", icon="✅")
-                        st.rerun()
-                    else:
-                        st.toast(f"❌ Error: {res}", icon="❌")
+                st.button("Process Initial RA Batch", use_container_width=True, on_click=process_ra_batch)
+            
             else:
                 ra_display = st.session_state['ra_repo'].copy()
                 st.markdown(generate_html_table(ra_display), unsafe_allow_html=True)
@@ -268,20 +319,7 @@ with tab2:
                 rcalc_lots = int(np.floor(rqty_val / r_auto_lot)) if r_auto_lot > 0 else 0
                 r_c4.markdown(f"<div style='font-size:11px; font-weight:600; color:#A0A0A0; margin-bottom:5px; margin-top:2px;'>TOTAL LOTS</div><div style='color:white; font-weight:bold; font-size: 16px; margin-top: 10px;'>{rcalc_lots}</div>", unsafe_allow_html=True)
                 
-                # Procedural Add Logic
-                if r_c5.button("Add", key="ra_add_btn", use_container_width=True):
-                    if not rsym_val:
-                        st.toast("⚠️ Please enter a Symbol.", icon="⚠️")
-                    elif r_auto_lot <= 0:
-                        st.toast(f"❌ Lot size for '{rsym_val}' not found in Master file.", icon="❌")
-                    elif rqty_val <= 0:
-                        st.toast("⚠️ Please enter a Quantity greater than 0.", icon="⚠️")
-                    else:
-                        new_row = pd.DataFrame([{"NSE Symbol": rsym_val, "Quantity": rqty_val, "Lot Size": r_auto_lot}])
-                        st.session_state['ra_repo'] = pd.concat([st.session_state['ra_repo'], new_row], ignore_index=True)
-                        st.session_state.ra_sym_input = ""
-                        st.session_state.ra_qty_input = 0.0
-                        st.rerun()
+                r_c5.button("Add", key="ra_add_btn", on_click=add_ra_single, use_container_width=True)
 
-# Bottom Buffer
+# Add a massive transparent buffer at the bottom of the page to prevent "Manage app" toggle overlap
 st.markdown("<div style='height: 100px; width: 100%;'></div>", unsafe_allow_html=True)
