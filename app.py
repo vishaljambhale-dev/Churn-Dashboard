@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 
 # =====================================================================
-# 1. PAGE CONFIGURATION & CUSTOM CSS
+# 1. PAGE CONFIGURATION & SAFE CUSTOM CSS
 # =====================================================================
 st.set_page_config(page_title="Dashboard", layout="wide", initial_sidebar_state="expanded")
 
@@ -17,34 +17,8 @@ st.markdown("""
     
     h1 { font-family: 'Segoe UI', sans-serif; padding-bottom: 0px; margin-bottom: 10px; color: white !important;}
     
-    /* 2. CARD BACKGROUND ENFORCEMENT */
-    div[data-testid="stVerticalBlockBorderWrapper"]:has(.fa-anchor),
-    div[data-testid="stVerticalBlock"]:has(.fa-anchor) > div {
-        background-color: #1A1C23 !important; 
-        border: none !important;
-        border-left: 4px solid #3B82F6 !important; /* FA Blue Accent */
-        padding: 20px !important;
-        border-radius: 6px !important;
-    }
-    
-    div[data-testid="stVerticalBlockBorderWrapper"]:has(.ra-anchor),
-    div[data-testid="stVerticalBlock"]:has(.ra-anchor) > div {
-        background-color: #1A1C23 !important; 
-        border: none !important;
-        border-left: 4px solid #EF4444 !important; /* RA Red Accent */
-        padding: 20px !important;
-        border-radius: 6px !important;
-    }
-    
-    /* Stop inner columns from inheriting card borders */
-    div[data-testid="column"] div[data-testid="column"] {
-        background-color: transparent !important;
-        border-left: none !important;
-        padding: 0px !important;
-        margin: 0px !important;
-    }
-    
-    /* 3. INPUT FIELDS & BUTTON STYLING */
+    /* 2. SAFE INPUT FIELDS & BUTTON STYLING */
+    /* Only targets the actual input elements, preventing layout bleeding */
     .stNumberInput input, .stTextInput input, .stTextArea textarea {
         color: #FFFFFF !important;
         font-weight: 600;
@@ -76,7 +50,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =====================================================================
-# 2. CORE DATA FUNCTIONS
+# 2. CORE DATA FUNCTIONS & HTML TABLE
 # =====================================================================
 @st.cache_data
 def load_lot_sizes(file):
@@ -143,29 +117,26 @@ def generate_html_table(df):
     return html
 
 # =====================================================================
-# 3. SIDEBAR & FILE LOADING (MOVED TO TOP FOR CALLBACK ACCESS)
+# 3. SIDEBAR & INITIALIZATION
 # =====================================================================
 with st.sidebar:
     st.markdown("## Trading Setup")
     master_file = st.file_uploader("Drop 'NSE Master Lot Size File' here", type=['csv'])
     lot_dict = load_lot_sizes(master_file) if master_file else {}
     st.divider()
-    st.markdown("<div style='text-align:center; font-size: 11px; color:#A0A0A0;'>Churn Dashboard v9.2</div>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align:center; font-size: 11px; color:#A0A0A0;'>Churn Dashboard v10.0</div>", unsafe_allow_html=True)
 
-# Initialize Global Session States
 if 'fa_booted' not in st.session_state:
     st.session_state.update({'fa_booted': False, 'fa_repo': pd.DataFrame()})
 if 'ra_booted' not in st.session_state:
     st.session_state.update({'ra_booted': False, 'ra_repo': pd.DataFrame()})
-
-# Initialize Form Input States
 if 'fa_sym_input' not in st.session_state: st.session_state.fa_sym_input = ""
 if 'fa_qty_input' not in st.session_state: st.session_state.fa_qty_input = 0.0
 if 'ra_sym_input' not in st.session_state: st.session_state.ra_sym_input = ""
 if 'ra_qty_input' not in st.session_state: st.session_state.ra_qty_input = 0.0
 
 # =====================================================================
-# 4. CALLBACK FUNCTIONS (MUST FIRE BEFORE UI RENDERS)
+# 4. CALLBACK FUNCTIONS
 # =====================================================================
 def process_fa_batch():
     raw = st.session_state.fa_init_box
@@ -176,8 +147,7 @@ def process_fa_batch():
         st.session_state['fa_repo'] = df
         st.session_state['fa_booted'] = True
         st.toast(f"✅ Success! Loaded {len(res)} FA entries.", icon="✅")
-    else:
-        st.toast(f"❌ Error: {res}", icon="❌")
+    else: st.toast(f"❌ Error: {res}", icon="❌")
 
 def process_ra_batch():
     raw = st.session_state.ra_init_box
@@ -188,24 +158,18 @@ def process_ra_batch():
         st.session_state['ra_repo'] = df
         st.session_state['ra_booted'] = True
         st.toast(f"✅ Success! Loaded {len(res)} RA entries.", icon="✅")
-    else:
-        st.toast(f"❌ Error: {res}", icon="❌")
+    else: st.toast(f"❌ Error: {res}", icon="❌")
 
 def add_fa_single():
     sym = st.session_state.fa_sym_input.strip().upper()
     qty = float(st.session_state.fa_qty_input)
     auto_lot = lot_dict.get(sym, 0)
-    
-    if not sym:
-        st.toast("⚠️ Please enter a Symbol.", icon="⚠️")
-    elif auto_lot <= 0:
-        st.toast(f"❌ Lot size for '{sym}' not found in Master file.", icon="❌")
-    elif qty <= 0:
-        st.toast("⚠️ Please enter a Quantity greater than 0.", icon="⚠️")
+    if not sym: st.toast("⚠️ Please enter a Symbol.", icon="⚠️")
+    elif auto_lot <= 0: st.toast(f"❌ Lot size for '{sym}' not found in Master file.", icon="❌")
+    elif qty <= 0: st.toast("⚠️ Please enter a Quantity greater than 0.", icon="⚠️")
     else:
         new_row = pd.DataFrame([{"NSE Symbol": sym, "Quantity": qty, "Lot Size": auto_lot}])
         st.session_state['fa_repo'] = pd.concat([st.session_state['fa_repo'], new_row], ignore_index=True)
-        # Clear fields safely
         st.session_state.fa_sym_input = ""
         st.session_state.fa_qty_input = 0.0
 
@@ -213,17 +177,12 @@ def add_ra_single():
     sym = st.session_state.ra_sym_input.strip().upper()
     qty = float(st.session_state.ra_qty_input)
     auto_lot = lot_dict.get(sym, 0)
-    
-    if not sym:
-        st.toast("⚠️ Please enter a Symbol.", icon="⚠️")
-    elif auto_lot <= 0:
-        st.toast(f"❌ Lot size for '{sym}' not found in Master file.", icon="❌")
-    elif qty <= 0:
-        st.toast("⚠️ Please enter a Quantity greater than 0.", icon="⚠️")
+    if not sym: st.toast("⚠️ Please enter a Symbol.", icon="⚠️")
+    elif auto_lot <= 0: st.toast(f"❌ Lot size for '{sym}' not found in Master file.", icon="❌")
+    elif qty <= 0: st.toast("⚠️ Please enter a Quantity greater than 0.", icon="⚠️")
     else:
         new_row = pd.DataFrame([{"NSE Symbol": sym, "Quantity": qty, "Lot Size": auto_lot}])
         st.session_state['ra_repo'] = pd.concat([st.session_state['ra_repo'], new_row], ignore_index=True)
-        # Clear fields safely
         st.session_state.ra_sym_input = ""
         st.session_state.ra_qty_input = 0.0
 
@@ -261,7 +220,7 @@ with tab2:
     with col_fa:
         fa_card = st.container(border=True)
         with fa_card:
-            st.markdown("<div class='fa-anchor'></div>", unsafe_allow_html=True)
+            # Clean Title with Blue Dot
             st.markdown("<h3 style='color: white; font-size:18px; font-weight: 600; margin-bottom: 20px;'><span style='color:#3B82F6;'>●</span> Fresh Arbitrage (FA)</h3>", unsafe_allow_html=True)
             
             if not st.session_state['fa_booted']:
@@ -293,7 +252,7 @@ with tab2:
     with col_ra:
         ra_card = st.container(border=True)
         with ra_card:
-            st.markdown("<div class='ra-anchor'></div>", unsafe_allow_html=True)
+            # Clean Title with Red Dot
             st.markdown("<h3 style='color: white; font-size:18px; font-weight: 600; margin-bottom: 20px;'><span style='color:#EF4444;'>●</span> Reverse Arbitrage (RA)</h3>", unsafe_allow_html=True)
             
             if not st.session_state['ra_booted']:
