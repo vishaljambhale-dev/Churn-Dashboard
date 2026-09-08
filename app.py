@@ -121,7 +121,7 @@ with st.sidebar:
     master_file = st.file_uploader("Drop 'NSE Master Lot Size File' here", type=['csv'])
     lot_dict = load_lot_sizes(master_file) if master_file else {}
     st.divider()
-    st.markdown("<div style='text-align:center; font-size: 11px; color:#A0A0A0;'>Churn Dashboard v13.0</div>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align:center; font-size: 11px; color:#A0A0A0;'>Churn Dashboard v15.0</div>", unsafe_allow_html=True)
 
 if 'fa_booted' not in st.session_state:
     st.session_state.update({'fa_booted': False, 'fa_repo': pd.DataFrame()})
@@ -229,6 +229,22 @@ with tab1:
                 key="trade_details_editor"
             )
             
+            # --- CLIENT ORDER UPDATE TABLE ---
+            st.markdown("### Client Order Update Format")
+            # 1. Extract only the required columns and rename them
+            order_update_df = edited_df[['Strategy', 'Symbol', 'BuyQty', 'BuyValue']].copy()
+            order_update_df.rename(columns={'BuyQty': 'Qty', 'BuyValue': 'Value'}, inplace=True)
+            
+            # 2. Sort mathematically by Strategy first, then by Symbol (A to Z)
+            order_update_df.sort_values(by=['Strategy', 'Symbol'], ascending=[True, True], inplace=True)
+            
+            # 3. Display perfectly matching the screenshot format
+            st.dataframe(
+                order_update_df.style.format({'Value': "{:.2f}"}),
+                use_container_width=True,
+                hide_index=True
+            )
+            
             if "Strategy" in edited_df.columns:
                 summary = edited_df.groupby('Strategy').agg(Qty=('BuyQty', 'sum'), Value=('BuyValue', 'sum')).reset_index()
                 
@@ -257,7 +273,8 @@ with tab1:
                         'Value (USD - Mil)': "{:.2f}", 
                         'BPS': "{:.6f}"
                     }), 
-                    use_container_width=True
+                    use_container_width=True,
+                    hide_index=True
                 )
 
 # ---------------------------------------------------------------------
