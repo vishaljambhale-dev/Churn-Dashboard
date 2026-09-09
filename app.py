@@ -13,24 +13,19 @@ st.markdown("""
         padding-top: 1.5rem !important;
         padding-bottom: 2rem !important;
     }
-    
     h1 { font-family: 'Segoe UI', sans-serif; padding-bottom: 0px; margin-bottom: 10px; color: white !important;}
-    
-    /* SAFE INPUT FIELDS & BUTTON STYLING */
     .stNumberInput input, .stTextInput input, .stTextArea textarea {
         color: #FFFFFF !important;
         font-weight: 600;
         background-color: #121212 !important;
         border: 1px solid #333 !important;
     }
-    
     label {
         font-size: 11px !important;
         font-weight: 600 !important;
         color: #A0A0A0 !important;
         text-transform: uppercase !important;
     }
-    
     .stButton > button {
         height: 40px !important;
         background-color: #1D4ED8 !important; 
@@ -67,36 +62,44 @@ def load_lot_sizes(file):
 
 @st.cache_data
 def load_trade_data(file):
-    file_name = file.name.lower()
-    
+    """Bulletproof loader that handles the broker's TSV disguised as an XLS file"""
     try:
-        # Step 1: Try reading as a legitimate Excel file
+        file.seek(0)
+        file_name = file.name.lower()
+        
         if file_name.endswith('.xlsx'):
-            return pd.read_excel(file, sheet_name=0, engine='openpyxl')
-        elif file_name.endswith('.xls'):
-            return pd.read_excel(file, sheet_name=0, engine='xlrd')
+            df = pd.read_excel(file, sheet_name=0, engine='openpyxl')
         else:
-            return pd.read_excel(file, sheet_name=0)
-            
-    except Exception:
-        # Step 2: If xlrd throws an XLRDError, it's a disguised file. 
-        # Fallback to reading it as an HTML table.
-        try:
-            file.seek(0) # Reset memory pointer
-            tables = pd.read_html(file)
-            return tables[0] if tables else pd.DataFrame()
-        except Exception:
-            # Step 3: If it's not HTML, it might be a Tab-Separated Values (TSV) file.
+            # Force read as Tab-Separated Value first since that is the actual format of Net Position.xls
             try:
-                file.seek(0)
-                return pd.read_csv(file, sep='\t')
-            except Exception as e:
-                st.error(f"Unrecognized file format. Please ensure it contains tabular data. Error: {e}")
-                return pd.DataFrame()
+                df = pd.read_csv(file, sep='\t')
+            except Exception:
+                df = pd.read_excel(file, sheet_name=0, engine='xlrd')
+                
+        # Standardize Broker Columns to exactly what the Dashboard expects
+        rename_map = {
+            'Client': 'ClientCode',
+            'BuyVal': 'BuyValue',
+            'SellVal': 'SellValue',
+            'BuyAvg': 'Buypx',
+            'SellAvg': 'Sellpx'
+        }
+        df.rename(columns=rename_map, inplace=True)
+        
+        # Inject required UI columns if missing from the raw broker file
+        if 'BPS' not in df.columns: df['BPS'] = 0.0
+        if 'Tally' not in df.columns: df['Tally'] = 0
+        if 'Buy_Month' not in df.columns: df['Buy_Month'] = ""
+        if 'Sell_Month' not in df.columns: df['Sell_Month'] = ""
+        if 'Div' not in df.columns: df['Div'] = 0.0
+            
+        return df
+    except Exception as e:
+        st.error(f"Failed to read file: {e}")
+        return pd.DataFrame()
 
 def parse_excel_paste(raw_text):
-    if not raw_text.strip():
-        return False, "No data found."
+    if not raw_text.strip(): return False, "No data found."
     lines = raw_text.strip().split('\n')
     rows = []
     for line in lines:
@@ -109,8 +112,7 @@ def parse_excel_paste(raw_text):
                 if sym: rows.append({"NSE Symbol": sym, "Quantity": qty})
             except ValueError:
                 continue
-    if rows:
-        return True, rows
+    if rows: return True, rows
     return False, "Unable to read format."
 
 def generate_html_table(df):
@@ -146,12 +148,10 @@ with st.sidebar:
     master_file = st.file_uploader("Drop 'NSE Master Lot Size File' here", type=['csv'])
     lot_dict = load_lot_sizes(master_file) if master_file else {}
     st.divider()
-    st.markdown("<div style='text-align:center; font-size: 11px; color:#A0A0A0;'>Churn Dashboard v15.0</div>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align:center; font-size: 11px; color:#A0A0A0;'>Churn Dashboard v16.0</div>", unsafe_allow_html=True)
 
-if 'fa_booted' not in st.session_state:
-    st.session_state.update({'fa_booted': False, 'fa_repo': pd.DataFrame()})
-if 'ra_booted' not in st.session_state:
-    st.session_state.update({'ra_booted': False, 'ra_repo': pd.DataFrame()})
+if 'fa_booted' not in st.session_state: st.session_state.update({'fa_booted': False, 'fa_repo': pd.DataFrame()})
+if 'ra_booted' not in st.session_state: st.session_state.update({'ra_booted': False, 'ra_repo': pd.DataFrame()})
 if 'fa_sym_input' not in st.session_state: st.session_state.fa_sym_input = ""
 if 'fa_qty_input' not in st.session_state: st.session_state.fa_qty_input = 0.0
 if 'ra_sym_input' not in st.session_state: st.session_state.ra_sym_input = ""
@@ -219,17 +219,12 @@ tab1, tab2 = st.tabs(["Trade Details", "Order Repository"])
 # ---------------------------------------------------------------------
 with tab1:
     t1_c1, t1_c2 = st.columns(2)
-    
-    with t1_c1:
-        client_filter = st.text_input("Client Code Filter (Optional)", placeholder="e.g. ABCD").strip().upper()
-        
-    with t1_c2:
-        pos_file = st.file_uploader("Drag and drop Net Position here to update execution view.", type=['xlsx', 'xls'])
+    with t1_c1: client_filter = st.text_input("Client Code Filter (Optional)", placeholder="e.g. I082").strip().upper()
+    with t1_c2: pos_file = st.file_uploader("Drag and drop Net Position here to update execution view.", type=['xlsx', 'xls'])
         
     if pos_file:
         df = load_trade_data(pos_file)
         
-        # Apply Partial Match Filter
         if client_filter and "ClientCode" in df.columns:
             df = df[df['ClientCode'].astype(str).str.upper().str.contains(client_filter, na=False)]
             
@@ -242,7 +237,9 @@ with tab1:
             
             st.markdown("### Detailed Trade Execution View")
             cols_to_keep = ['ClientCode', 'Strategy', 'Symbol', 'Buy_Month', 'BuyQty', 'BuyLot', 'Buypx', 'BuyValue', 'Sell_Month', 'SellQty', 'SellLot', 'Sellpx', 'SellValue', 'Div', 'BPS', 'Tally']
-            display_df = df[[c for c in cols_to_keep if c in df.columns]]
+            # Reorder safely to drop what doesn't exist without KeyError
+            display_cols = [c for c in cols_to_keep if c in df.columns]
+            display_df = df[display_cols]
             
             disabled_columns = [col for col in display_df.columns if col != 'BPS']
             
@@ -256,37 +253,35 @@ with tab1:
             
             # --- CLIENT ORDER UPDATE TABLE ---
             st.markdown("### Client Order Update Format")
-            # 1. Extract only the required columns and rename them
-            order_update_df = edited_df[['Strategy', 'Symbol', 'BuyQty', 'BuyValue']].copy()
+            req_update_cols = ['Strategy', 'Symbol', 'BuyQty', 'BuyValue']
+            act_update_cols = [c for c in req_update_cols if c in edited_df.columns]
+            
+            order_update_df = edited_df[act_update_cols].copy()
             order_update_df.rename(columns={'BuyQty': 'Qty', 'BuyValue': 'Value'}, inplace=True)
             
-            # 2. Sort mathematically by Strategy first, then by Symbol (A to Z)
-            order_update_df.sort_values(by=['Strategy', 'Symbol'], ascending=[True, True], inplace=True)
+            sort_cols = [c for c in ['Strategy', 'Symbol'] if c in order_update_df.columns]
+            if sort_cols:
+                order_update_df.sort_values(by=sort_cols, ascending=[True]*len(sort_cols), inplace=True)
+                
+            fmt_dict = {'Value': "{:.2f}"} if 'Value' in order_update_df.columns else {}
+            st.dataframe(order_update_df.style.format(fmt_dict), use_container_width=True, hide_index=True)
             
-            # 3. Display perfectly matching the screenshot format
-            st.dataframe(
-                order_update_df.style.format({'Value': "{:.2f}"}),
-                use_container_width=True,
-                hide_index=True
-            )
-            
+            # --- SUMMARY MATH ---
             if "Strategy" in edited_df.columns:
                 summary = edited_df.groupby('Strategy').agg(Qty=('BuyQty', 'sum'), Value=('BuyValue', 'sum')).reset_index()
                 
-                # --- QUANTITY-WEIGHTED BPS CALCULATION ---
+                # Quantity-Weighted BPS
                 if 'BPS' in edited_df.columns and 'BuyQty' in edited_df.columns:
                     def calc_weighted_bps(x):
                         total_qty = x['BuyQty'].sum()
-                        if total_qty == 0:
-                            return 0.0
-                        return (x['BPS'] * x['BuyQty']).sum() / total_qty
-                        
+                        return (x['BPS'] * x['BuyQty']).sum() / total_qty if total_qty > 0 else 0.0
                     bps_weighted = edited_df.groupby('Strategy').apply(calc_weighted_bps).reset_index(name='BPS')
                     summary = pd.merge(summary, bps_weighted, on='Strategy', how='left')
                 else: 
                     summary['BPS'] = 0.0
                 
-                summary['Value (Cr)'] = summary['Value']
+                # Scale math restored exactly as requested
+                summary['Value (Cr)'] = summary['Value'] / 10000000
                 summary['Value (USD - Mil)'] = summary['Value (Cr)'] / 8.6
                 
                 summary = summary[['Strategy', 'Qty', 'Value', 'Value (Cr)', 'Value (USD - Mil)', 'BPS']]
@@ -308,7 +303,6 @@ with tab1:
 with tab2:
     col_fa, col_ra = st.columns(2)
     
-    # --- FRESH ARBITRAGE (FA) CARD ---
     with col_fa:
         fa_card = st.container(border=True)
         with fa_card:
@@ -317,29 +311,21 @@ with tab2:
             if not st.session_state['fa_booted']:
                 st.text_area("Paste Excel Batch (Symbol & Quantity)", height=150, key="fa_init_box", placeholder="ABB\t13455\nADANIENSOL\t72166...")
                 st.button("Process Initial FA Batch", use_container_width=True, on_click=process_fa_batch)
-            
             else:
                 fa_display = st.session_state['fa_repo'].copy()
                 st.markdown(generate_html_table(fa_display), unsafe_allow_html=True)
-                
                 st.markdown("<span style='font-size: 13px; color: white; font-weight:bold;'>+ Add New Entry</span>", unsafe_allow_html=True)
                 
                 f_c1, f_c2, f_c3, f_c4, f_c5 = st.columns([2.5, 1.5, 1.2, 1, 1.2])
-                
                 sym_val = f_c1.text_input("SYMBOL", key="fa_sym_input", placeholder="Search...").strip().upper()
                 qty_val = f_c2.number_input("QUANTITY", min_value=0.0, step=1.0, key="fa_qty_input")
-                
                 auto_lot = lot_dict.get(sym_val, 0) if sym_val else 0
                 lot_display = str(int(auto_lot)) if auto_lot > 0 else "Auto"
-                
                 f_c3.text_input("LOT SIZE", value=lot_display, disabled=True, key=f"fa_lot_lock_{sym_val}")
-                
                 calc_lots = int(np.floor(qty_val / auto_lot)) if auto_lot > 0 else 0
                 f_c4.markdown(f"<div style='font-size:11px; font-weight:600; color:#A0A0A0; margin-bottom:5px; margin-top:2px;'>TOTAL LOTS</div><div style='color:white; font-weight:bold; font-size: 16px; margin-top: 10px;'>{calc_lots}</div>", unsafe_allow_html=True)
-                
                 f_c5.button("Add", key="fa_add_btn", on_click=add_fa_single, use_container_width=True)
 
-    # --- REVERSE ARBITRAGE (RA) CARD ---
     with col_ra:
         ra_card = st.container(border=True)
         with ra_card:
@@ -348,27 +334,19 @@ with tab2:
             if not st.session_state['ra_booted']:
                 st.text_area("Paste Excel Batch (Symbol & Quantity)", height=150, key="ra_init_box", placeholder="ALKEM\t6744\nASHOKLEY\t152750...")
                 st.button("Process Initial RA Batch", use_container_width=True, on_click=process_ra_batch)
-            
             else:
                 ra_display = st.session_state['ra_repo'].copy()
                 st.markdown(generate_html_table(ra_display), unsafe_allow_html=True)
-                
                 st.markdown("<span style='font-size: 13px; color: white; font-weight:bold;'>+ Add New Entry</span>", unsafe_allow_html=True)
                 
                 r_c1, r_c2, r_c3, r_c4, r_c5 = st.columns([2.5, 1.5, 1.2, 1, 1.2])
-                
                 rsym_val = r_c1.text_input("SYMBOL", key="ra_sym_input", placeholder="Search...").strip().upper()
                 rqty_val = r_c2.number_input("QUANTITY", min_value=0.0, step=1.0, key="ra_qty_input")
-                
                 r_auto_lot = lot_dict.get(rsym_val, 0) if rsym_val else 0
                 rlot_display = str(int(r_auto_lot)) if r_auto_lot > 0 else "Auto"
-                
                 r_c3.text_input("LOT SIZE", value=rlot_display, disabled=True, key=f"ra_lot_lock_{rsym_val}")
-                
                 rcalc_lots = int(np.floor(rqty_val / r_auto_lot)) if r_auto_lot > 0 else 0
                 r_c4.markdown(f"<div style='font-size:11px; font-weight:600; color:#A0A0A0; margin-bottom:5px; margin-top:2px;'>TOTAL LOTS</div><div style='color:white; font-weight:bold; font-size: 16px; margin-top: 10px;'>{rcalc_lots}</div>", unsafe_allow_html=True)
-                
                 r_c5.button("Add", key="ra_add_btn", on_click=add_ra_single, use_container_width=True)
 
-# Add a massive transparent buffer at the bottom of the page
 st.markdown("<div style='height: 100px; width: 100%;'></div>", unsafe_allow_html=True)
