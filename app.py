@@ -84,6 +84,14 @@ def load_trade_data(file):
         }
         df.rename(columns=rename_map, inplace=True)
         
+        # Enforce True Numeric Types (fixes alignment bugs if broker sends text numbers)
+        numeric_cols = ['BuyQty', 'BuyValue', 'SellQty', 'SellValue', 'Buypx', 'Sellpx', 'BuyLot', 'SellLot']
+        for col in numeric_cols:
+            if col in df.columns:
+                if df[col].dtype == object:
+                    df[col] = df[col].astype(str).str.replace(',', '', regex=False)
+                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+        
         if 'BPS' not in df.columns: df['BPS'] = 0.0
         if 'Tally' not in df.columns: df['Tally'] = 0
         if 'Buy_Month' not in df.columns: df['Buy_Month'] = ""
@@ -139,23 +147,24 @@ def generate_html_table(df):
     return html
 
 def generate_copyable_table(df):
-    """Light-themed table strictly designed for pristine copy-pasting into emails/chats"""
-    html = '<div style="background-color: #FFFFFF; padding: 15px; border-radius: 6px; border: 1px solid #E2E8F0; margin-bottom: 20px;">'
-    html += '<p style="color: #1D4ED8; font-size: 13px; margin-top: 0px; margin-bottom: 12px; font-weight: 600;">💡 How to Copy: Click and drag your mouse to highlight this entire table, then press Ctrl+C (Cmd+C). It will paste perfectly formatted into Outlook, Teams, or WhatsApp.</p>'
+    """Compact Light-themed table strictly designed for pristine copy-pasting"""
+    # Changed wrapper to inline-block so it hugs the table content instead of stretching 100% wide
+    html = '<div style="background-color: #FFFFFF; padding: 15px 25px 15px 15px; border-radius: 6px; border: 1px solid #E2E8F0; margin-bottom: 20px; display: inline-block; min-width: 400px;">'
+    html += '<p style="color: #1D4ED8; font-size: 13px; margin-top: 0px; margin-bottom: 12px; font-weight: 600;">💡 How to Copy: Click and drag your mouse to highlight this entire table, then press Ctrl+C (Cmd+C).</p>'
     html += '<table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #000000; font-family: Calibri, Helvetica, Arial, sans-serif;">'
     html += '<thead style="background-color: #F1F5F9;"><tr>'
-    html += '<th style="text-align: left; padding: 8px; border: 1px solid #CBD5E1; font-weight: bold;">Strategy</th>'
-    html += '<th style="text-align: left; padding: 8px; border: 1px solid #CBD5E1; font-weight: bold;">Symbol</th>'
-    html += '<th style="text-align: right; padding: 8px; border: 1px solid #CBD5E1; font-weight: bold;">Qty</th>'
-    html += '<th style="text-align: right; padding: 8px; border: 1px solid #CBD5E1; font-weight: bold;">Value</th>'
+    html += '<th style="text-align: left; padding: 6px 15px 6px 8px; border: 1px solid #CBD5E1; font-weight: bold;">Strategy</th>'
+    html += '<th style="text-align: left; padding: 6px 15px 6px 8px; border: 1px solid #CBD5E1; font-weight: bold;">Symbol</th>'
+    html += '<th style="text-align: right; padding: 6px 15px 6px 8px; border: 1px solid #CBD5E1; font-weight: bold;">Qty</th>'
+    html += '<th style="text-align: right; padding: 6px 15px 6px 8px; border: 1px solid #CBD5E1; font-weight: bold;">Value</th>'
     html += '</tr></thead><tbody>'
     
     for _, row in df.iterrows():
         html += '<tr>'
-        html += f'<td style="text-align: left; padding: 6px 8px; border: 1px solid #CBD5E1;">{row.get("Strategy", "")}</td>'
-        html += f'<td style="text-align: left; padding: 6px 8px; border: 1px solid #CBD5E1;">{row.get("Symbol", "")}</td>'
-        html += f'<td style="text-align: right; padding: 6px 8px; border: 1px solid #CBD5E1;">{row.get("Qty", "")}</td>'
-        html += f'<td style="text-align: right; padding: 6px 8px; border: 1px solid #CBD5E1;">{row.get("Value", "")}</td>'
+        html += f'<td style="text-align: left; padding: 4px 15px 4px 8px; border: 1px solid #CBD5E1;">{row.get("Strategy", "")}</td>'
+        html += f'<td style="text-align: left; padding: 4px 15px 4px 8px; border: 1px solid #CBD5E1;">{row.get("Symbol", "")}</td>'
+        html += f'<td style="text-align: right; padding: 4px 15px 4px 8px; border: 1px solid #CBD5E1;">{row.get("Qty", "")}</td>'
+        html += f'<td style="text-align: right; padding: 4px 15px 4px 8px; border: 1px solid #CBD5E1;">{row.get("Value", "")}</td>'
         html += '</tr>'
         
     html += '</tbody></table></div>'
@@ -169,7 +178,7 @@ with st.sidebar:
     master_file = st.file_uploader("Drop 'NSE Master Lot Size File' here", type=['csv'])
     lot_dict = load_lot_sizes(master_file) if master_file else {}
     st.divider()
-    st.markdown("<div style='text-align:center; font-size: 11px; color:#A0A0A0;'>Churn Dashboard v19.0</div>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align:center; font-size: 11px; color:#A0A0A0;'>Churn Dashboard v20.0</div>", unsafe_allow_html=True)
 
 if 'fa_booted' not in st.session_state: st.session_state.update({'fa_booted': False, 'fa_repo': pd.DataFrame()})
 if 'ra_booted' not in st.session_state: st.session_state.update({'ra_booted': False, 'ra_repo': pd.DataFrame()})
@@ -263,11 +272,18 @@ with tab1:
             
             disabled_columns = [col for col in display_df.columns if col != 'BPS']
             
+            # Setup native column config for perfect alignment (keeps true numeric nature)
+            detail_col_config = {}
+            for col in ['Buypx', 'BuyValue', 'Sellpx', 'SellValue', 'BPS']:
+                if col in display_df.columns:
+                    detail_col_config[col] = st.column_config.NumberColumn(format="%.2f")
+            
             edited_df = st.data_editor(
                 display_df, 
                 disabled=disabled_columns, 
                 use_container_width=True,
                 hide_index=True,
+                column_config=detail_col_config,
                 key="trade_details_editor"
             )
             
@@ -283,22 +299,20 @@ with tab1:
             if sort_cols:
                 order_update_df.sort_values(by=sort_cols, ascending=[True]*len(sort_cols), inplace=True)
             
-            # Format the columns perfectly for HTML export
             copy_df = order_update_df.copy()
             if 'Qty' in copy_df.columns:
                 copy_df['Qty'] = pd.to_numeric(copy_df['Qty'], errors='coerce').fillna(0).astype(int)
             if 'Value' in copy_df.columns:
                 copy_df['Value'] = pd.to_numeric(copy_df['Value'], errors='coerce').fillna(0)
-                copy_df['Value'] = copy_df['Value'].map("{:.2f}".format)
+                copy_df['Value'] = copy_df['Value'].map("{:,.2f}".format) # Adds commas for clean readability
                 
-            # Render the highly formatted copyable HTML table
+            # Render the Compact HTML table
             st.markdown(generate_copyable_table(copy_df), unsafe_allow_html=True)
             
             # --- SUMMARY MATH ---
             if "Strategy" in edited_df.columns:
                 summary = edited_df.groupby('Strategy').agg(Qty=('BuyQty', 'sum'), Value=('BuyValue', 'sum')).reset_index()
                 
-                # Quantity-Weighted BPS
                 if 'BPS' in edited_df.columns and 'BuyQty' in edited_df.columns:
                     def calc_weighted_bps(x):
                         total_qty = x['BuyQty'].sum()
@@ -308,19 +322,20 @@ with tab1:
                 else: 
                     summary['BPS'] = 0.0
                 
-                # Scale math restored
                 summary['Value (Cr)'] = summary['Value'] / 10000000
                 summary['Value (USD - Mil)'] = summary['Value (Cr)'] / 8.6
                 
                 summary = summary[['Strategy', 'Qty', 'Value', 'Value (Cr)', 'Value (USD - Mil)', 'BPS']]
                 
+                # Use native Streamlit formatting for Summary (fixes alignment completely)
                 summary_placeholder.dataframe(
-                    summary.style.format({
-                        'Value': "{:,.2f}", 
-                        'Value (Cr)': "{:.2f}", 
-                        'Value (USD - Mil)': "{:.2f}", 
-                        'BPS': "{:.2f}" 
-                    }), 
+                    summary, 
+                    column_config={
+                        "Value": st.column_config.NumberColumn(format="%.2f"),
+                        "Value (Cr)": st.column_config.NumberColumn(format="%.2f"),
+                        "Value (USD - Mil)": st.column_config.NumberColumn(format="%.2f"),
+                        "BPS": st.column_config.NumberColumn(format="%.2f")
+                    },
                     use_container_width=True,
                     hide_index=True
                 )
