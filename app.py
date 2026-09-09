@@ -70,13 +70,11 @@ def load_trade_data(file):
         if file_name.endswith('.xlsx'):
             df = pd.read_excel(file, sheet_name=0, engine='openpyxl')
         else:
-            # Force read as Tab-Separated Value first since that is the actual format of Net Position.xls
             try:
                 df = pd.read_csv(file, sep='\t')
             except Exception:
                 df = pd.read_excel(file, sheet_name=0, engine='xlrd')
                 
-        # Standardize Broker Columns to exactly what the Dashboard expects
         rename_map = {
             'Client': 'ClientCode',
             'BuyVal': 'BuyValue',
@@ -86,7 +84,6 @@ def load_trade_data(file):
         }
         df.rename(columns=rename_map, inplace=True)
         
-        # Inject required UI columns if missing from the raw broker file
         if 'BPS' not in df.columns: df['BPS'] = 0.0
         if 'Tally' not in df.columns: df['Tally'] = 0
         if 'Buy_Month' not in df.columns: df['Buy_Month'] = ""
@@ -148,7 +145,7 @@ with st.sidebar:
     master_file = st.file_uploader("Drop 'NSE Master Lot Size File' here", type=['csv'])
     lot_dict = load_lot_sizes(master_file) if master_file else {}
     st.divider()
-    st.markdown("<div style='text-align:center; font-size: 11px; color:#A0A0A0;'>Churn Dashboard v16.0</div>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align:center; font-size: 11px; color:#A0A0A0;'>Churn Dashboard v18.0</div>", unsafe_allow_html=True)
 
 if 'fa_booted' not in st.session_state: st.session_state.update({'fa_booted': False, 'fa_repo': pd.DataFrame()})
 if 'ra_booted' not in st.session_state: st.session_state.update({'ra_booted': False, 'ra_repo': pd.DataFrame()})
@@ -237,7 +234,6 @@ with tab1:
             
             st.markdown("### Detailed Trade Execution View")
             cols_to_keep = ['ClientCode', 'Strategy', 'Symbol', 'Buy_Month', 'BuyQty', 'BuyLot', 'Buypx', 'BuyValue', 'Sell_Month', 'SellQty', 'SellLot', 'Sellpx', 'SellValue', 'Div', 'BPS', 'Tally']
-            # Reorder safely to drop what doesn't exist without KeyError
             display_cols = [c for c in cols_to_keep if c in df.columns]
             display_df = df[display_cols]
             
@@ -251,8 +247,8 @@ with tab1:
                 key="trade_details_editor"
             )
             
-            # --- CLIENT ORDER UPDATE TABLE ---
-            st.markdown("### Client Order Update Format")
+            # --- CLIENT ORDER UPDATE TABLE & ONE-CLICK COPY ---
+            st.markdown("### Client Order Update")
             req_update_cols = ['Strategy', 'Symbol', 'BuyQty', 'BuyValue']
             act_update_cols = [c for c in req_update_cols if c in edited_df.columns]
             
@@ -262,9 +258,19 @@ with tab1:
             sort_cols = [c for c in ['Strategy', 'Symbol'] if c in order_update_df.columns]
             if sort_cols:
                 order_update_df.sort_values(by=sort_cols, ascending=[True]*len(sort_cols), inplace=True)
+            
+            # Create a string-formatted copy for the copy-paste block
+            copy_df = order_update_df.copy()
+            if 'Value' in copy_df.columns:
+                copy_df['Value'] = copy_df['Value'].map("{:.2f}".format)
                 
-            fmt_dict = {'Value': "{:.2f}"} if 'Value' in order_update_df.columns else {}
-            st.dataframe(order_update_df.style.format(fmt_dict), use_container_width=True, hide_index=True)
+            # Display visual table
+            st.dataframe(copy_df, use_container_width=True, hide_index=True)
+            
+            # Native Streamlit code block for 1-click copying (Tab-Separated)
+            st.markdown("<span style='font-size: 13px; color: #A0A0A0; font-weight:bold;'>Copy to Clipboard (Hover over box and click the copy icon on the top right)</span>", unsafe_allow_html=True)
+            tsv_data = copy_df.to_csv(sep='\t', index=False)
+            st.code(tsv_data, language='text')
             
             # --- SUMMARY MATH ---
             if "Strategy" in edited_df.columns:
@@ -280,7 +286,7 @@ with tab1:
                 else: 
                     summary['BPS'] = 0.0
                 
-                # Scale math restored exactly as requested
+                # Scale math restored
                 summary['Value (Cr)'] = summary['Value'] / 10000000
                 summary['Value (USD - Mil)'] = summary['Value (Cr)'] / 8.6
                 
@@ -291,7 +297,7 @@ with tab1:
                         'Value': "{:,.2f}", 
                         'Value (Cr)': "{:.2f}", 
                         'Value (USD - Mil)': "{:.2f}", 
-                        'BPS': "{:.6f}"
+                        'BPS': "{:.2f}"  # <-- Rounded to 2 digits
                     }), 
                     use_container_width=True,
                     hide_index=True
