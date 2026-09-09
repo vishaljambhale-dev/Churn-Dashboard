@@ -42,7 +42,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =====================================================================
-# 2. CORE DATA FUNCTIONS & HTML TABLE
+# 2. CORE DATA FUNCTIONS & HTML TABLES
 # =====================================================================
 @st.cache_data
 def load_lot_sizes(file):
@@ -113,6 +113,7 @@ def parse_excel_paste(raw_text):
     return False, "Unable to read format."
 
 def generate_html_table(df):
+    """Dark-themed table for internal dashboard viewing"""
     if 'Lot Size' not in df.columns: df['Lot Size'] = 0
     df['Total Lots'] = np.where(df['Lot Size'] > 0, np.floor(df['Quantity'] / df['Lot Size']), 0)
     
@@ -137,6 +138,29 @@ def generate_html_table(df):
     html += '</tbody></table></div>'
     return html
 
+def generate_copyable_table(df):
+    """Light-themed table strictly designed for pristine copy-pasting into emails/chats"""
+    html = '<div style="background-color: #FFFFFF; padding: 15px; border-radius: 6px; border: 1px solid #E2E8F0; margin-bottom: 20px;">'
+    html += '<p style="color: #1D4ED8; font-size: 13px; margin-top: 0px; margin-bottom: 12px; font-weight: 600;">💡 How to Copy: Click and drag your mouse to highlight this entire table, then press Ctrl+C (Cmd+C). It will paste perfectly formatted into Outlook, Teams, or WhatsApp.</p>'
+    html += '<table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #000000; font-family: Calibri, Helvetica, Arial, sans-serif;">'
+    html += '<thead style="background-color: #F1F5F9;"><tr>'
+    html += '<th style="text-align: left; padding: 8px; border: 1px solid #CBD5E1; font-weight: bold;">Strategy</th>'
+    html += '<th style="text-align: left; padding: 8px; border: 1px solid #CBD5E1; font-weight: bold;">Symbol</th>'
+    html += '<th style="text-align: right; padding: 8px; border: 1px solid #CBD5E1; font-weight: bold;">Qty</th>'
+    html += '<th style="text-align: right; padding: 8px; border: 1px solid #CBD5E1; font-weight: bold;">Value</th>'
+    html += '</tr></thead><tbody>'
+    
+    for _, row in df.iterrows():
+        html += '<tr>'
+        html += f'<td style="text-align: left; padding: 6px 8px; border: 1px solid #CBD5E1;">{row.get("Strategy", "")}</td>'
+        html += f'<td style="text-align: left; padding: 6px 8px; border: 1px solid #CBD5E1;">{row.get("Symbol", "")}</td>'
+        html += f'<td style="text-align: right; padding: 6px 8px; border: 1px solid #CBD5E1;">{row.get("Qty", "")}</td>'
+        html += f'<td style="text-align: right; padding: 6px 8px; border: 1px solid #CBD5E1;">{row.get("Value", "")}</td>'
+        html += '</tr>'
+        
+    html += '</tbody></table></div>'
+    return html
+
 # =====================================================================
 # 3. SIDEBAR & INITIALIZATION
 # =====================================================================
@@ -145,7 +169,7 @@ with st.sidebar:
     master_file = st.file_uploader("Drop 'NSE Master Lot Size File' here", type=['csv'])
     lot_dict = load_lot_sizes(master_file) if master_file else {}
     st.divider()
-    st.markdown("<div style='text-align:center; font-size: 11px; color:#A0A0A0;'>Churn Dashboard v18.0</div>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align:center; font-size: 11px; color:#A0A0A0;'>Churn Dashboard v19.0</div>", unsafe_allow_html=True)
 
 if 'fa_booted' not in st.session_state: st.session_state.update({'fa_booted': False, 'fa_repo': pd.DataFrame()})
 if 'ra_booted' not in st.session_state: st.session_state.update({'ra_booted': False, 'ra_repo': pd.DataFrame()})
@@ -247,7 +271,7 @@ with tab1:
                 key="trade_details_editor"
             )
             
-            # --- CLIENT ORDER UPDATE TABLE & ONE-CLICK COPY ---
+            # --- CLIENT ORDER UPDATE TABLE (HTML COPYABLE) ---
             st.markdown("### Client Order Update")
             req_update_cols = ['Strategy', 'Symbol', 'BuyQty', 'BuyValue']
             act_update_cols = [c for c in req_update_cols if c in edited_df.columns]
@@ -259,18 +283,16 @@ with tab1:
             if sort_cols:
                 order_update_df.sort_values(by=sort_cols, ascending=[True]*len(sort_cols), inplace=True)
             
-            # Create a string-formatted copy for the copy-paste block
+            # Format the columns perfectly for HTML export
             copy_df = order_update_df.copy()
+            if 'Qty' in copy_df.columns:
+                copy_df['Qty'] = pd.to_numeric(copy_df['Qty'], errors='coerce').fillna(0).astype(int)
             if 'Value' in copy_df.columns:
+                copy_df['Value'] = pd.to_numeric(copy_df['Value'], errors='coerce').fillna(0)
                 copy_df['Value'] = copy_df['Value'].map("{:.2f}".format)
                 
-            # Display visual table
-            st.dataframe(copy_df, use_container_width=True, hide_index=True)
-            
-            # Native Streamlit code block for 1-click copying (Tab-Separated)
-            st.markdown("<span style='font-size: 13px; color: #A0A0A0; font-weight:bold;'>Copy to Clipboard (Hover over box and click the copy icon on the top right)</span>", unsafe_allow_html=True)
-            tsv_data = copy_df.to_csv(sep='\t', index=False)
-            st.code(tsv_data, language='text')
+            # Render the highly formatted copyable HTML table
+            st.markdown(generate_copyable_table(copy_df), unsafe_allow_html=True)
             
             # --- SUMMARY MATH ---
             if "Strategy" in edited_df.columns:
@@ -297,7 +319,7 @@ with tab1:
                         'Value': "{:,.2f}", 
                         'Value (Cr)': "{:.2f}", 
                         'Value (USD - Mil)': "{:.2f}", 
-                        'BPS': "{:.2f}"  # <-- Rounded to 2 digits
+                        'BPS': "{:.2f}" 
                     }), 
                     use_container_width=True,
                     hide_index=True
